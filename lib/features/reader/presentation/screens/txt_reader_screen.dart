@@ -36,6 +36,9 @@ class _TxtReaderScreenState extends ConsumerState<TxtReaderScreen> {
   bool _isUiVisible = true;
   String? _bookId;
 
+  Offset? _lastPointerDown;
+  int? _lastPointerDownMs;
+
   Future<void> _pageScrollBy(double delta) async {
     if (!_scrollController.hasClients) return;
     final target = (_scrollController.offset + delta).clamp(
@@ -47,42 +50,6 @@ class _TxtReaderScreenState extends ConsumerState<TxtReaderScreen> {
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOut,
     );
-  }
-
-  void _handleReaderTapZone(BuildContext context, TapUpDetails details) {
-    final width = MediaQuery.of(context).size.width;
-    final dx = details.localPosition.dx;
-    final ratio = dx / width;
-    final viewport = _scrollController.hasClients
-        ? _scrollController.position.viewportDimension
-        : MediaQuery.of(context).size.height;
-
-    if (ratio <= 0.20) {
-      _pageScrollBy(-viewport * 0.92);
-      return;
-    }
-    if (ratio >= 0.80) {
-      _pageScrollBy(viewport * 0.92);
-      return;
-    }
-
-    _toggleFocusMode();
-  }
-
-  void _handleHorizontalDragEnd(DragEndDetails details) {
-    final v = details.primaryVelocity ?? 0.0;
-    if (v.abs() < 250) return;
-
-    final viewport = _scrollController.hasClients
-        ? _scrollController.position.viewportDimension
-        : MediaQuery.of(context).size.height;
-
-    // Swipe left => next, swipe right => previous
-    if (v < 0) {
-      _pageScrollBy(viewport * 0.92);
-    } else {
-      _pageScrollBy(-viewport * 0.92);
-    }
   }
 
   @override
@@ -276,33 +243,70 @@ class _TxtReaderScreenState extends ConsumerState<TxtReaderScreen> {
               ],
             )
           : null,
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTapUp: (d) => _handleReaderTapZone(context, d),
-        child: _content == null
-            ? const Center(child: CircularProgressIndicator())
-            : Container(
-                color: _bg(settings.colorMode),
-                child: SelectionArea(
-                  child: Scrollbar(
-                    controller: _scrollController,
-                    child: SingleChildScrollView(
+      body: Stack(
+        children: [
+          _content == null
+              ? const Center(child: CircularProgressIndicator())
+              : Container(
+                  color: _bg(settings.colorMode),
+                  child: SelectionArea(
+                    child: Scrollbar(
                       controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
-                      physics: const BouncingScrollPhysics(),
-                      child: Text(
-                        _content!,
-                        style: TextStyle(
-                          fontSize: settings.fontSize * settings.zoom,
-                          height: settings.lineHeight,
-                          fontFamily: settings.fontFamily,
-                          color: _fg(settings.colorMode),
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
+                        child: Text(
+                          _content!,
+                          style: TextStyle(
+                            fontSize: settings.fontSize * settings.zoom,
+                            height: settings.lineHeight,
+                            color: _fg(settings.colorMode),
+                            fontFamily: settings.fontFamily,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
+          Positioned.fill(
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (e) {
+                _lastPointerDown = e.localPosition;
+                _lastPointerDownMs = DateTime.now().millisecondsSinceEpoch;
+              },
+              onPointerUp: (e) {
+                final down = _lastPointerDown;
+                final downMs = _lastPointerDownMs;
+                _lastPointerDown = null;
+                _lastPointerDownMs = null;
+                if (down == null || downMs == null) return;
+                final dt = DateTime.now().millisecondsSinceEpoch - downMs;
+                final dx = (e.localPosition.dx - down.dx).abs();
+                final dy = (e.localPosition.dy - down.dy).abs();
+                if (dt > 260 || dx > 18 || dy > 18) return;
+
+                final width = MediaQuery.of(context).size.width;
+                final ratio = e.localPosition.dx / width;
+
+                final viewport = _scrollController.hasClients
+                    ? _scrollController.position.viewportDimension
+                    : MediaQuery.of(context).size.height;
+
+                if (ratio <= 0.20) {
+                  _pageScrollBy(-viewport * 0.92);
+                  return;
+                }
+                if (ratio >= 0.80) {
+                  _pageScrollBy(viewport * 0.92);
+                  return;
+                }
+
+                _toggleFocusMode();
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

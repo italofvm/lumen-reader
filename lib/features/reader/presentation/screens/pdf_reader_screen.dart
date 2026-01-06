@@ -39,6 +39,9 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
   String? _bookId;
   PdfDocument? _searchDocument;
 
+  Offset? _lastPointerDown;
+  int? _lastPointerDownMs;
+
   void _goToPreviousPage() {
     final current = _pdfViewerController.pageNumber;
     if (current <= 1) return;
@@ -49,42 +52,6 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
     final current = _pdfViewerController.pageNumber;
     if (_totalPages > 0 && current >= _totalPages) return;
     _pdfViewerController.jumpToPage(current + 1);
-  }
-
-  void _handleReaderTapZone(BuildContext context, TapUpDetails details) {
-    // If user is selecting text, don't hijack taps.
-    if (_selectedText.trim().isNotEmpty) return;
-
-    final width = MediaQuery.of(context).size.width;
-    final dx = details.localPosition.dx;
-    final ratio = dx / width;
-
-    // 20% left / 20% right, center keeps focus mode.
-    if (ratio <= 0.20) {
-      _goToPreviousPage();
-      return;
-    }
-    if (ratio >= 0.80) {
-      _goToNextPage();
-      return;
-    }
-
-    _toggleFocusMode();
-  }
-
-  void _handleHorizontalDragEnd(DragEndDetails details) {
-    final settings = ref.read(readerSettingsProvider);
-    if (!settings.isHorizontal) return;
-
-    // Velocity sign: swipe left => next page, swipe right => previous page.
-    final v = details.primaryVelocity ?? 0.0;
-    if (v.abs() < 250) return;
-
-    if (v < 0) {
-      _goToNextPage();
-    } else {
-      _goToPreviousPage();
-    }
   }
 
   void _showAIExplanation(BuildContext context) {
@@ -316,10 +283,47 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
               ],
             )
           : null,
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTapUp: (d) => _handleReaderTapZone(context, d),
-        child: _buildReaderBody(),
+      body: Stack(
+        children: [
+          _buildReaderBody(),
+          Positioned.fill(
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (e) {
+                _lastPointerDown = e.localPosition;
+                _lastPointerDownMs = DateTime.now().millisecondsSinceEpoch;
+              },
+              onPointerUp: (e) {
+                if (_selectedText.trim().isNotEmpty) return;
+
+                // Only treat as a tap (not a swipe/drag).
+                final down = _lastPointerDown;
+                final downMs = _lastPointerDownMs;
+                _lastPointerDown = null;
+                _lastPointerDownMs = null;
+                if (down == null || downMs == null) return;
+                final dt = DateTime.now().millisecondsSinceEpoch - downMs;
+                final dx = (e.localPosition.dx - down.dx).abs();
+                final dy = (e.localPosition.dy - down.dy).abs();
+                if (dt > 260 || dx > 18 || dy > 18) return;
+
+                final width = MediaQuery.of(context).size.width;
+                final ratio = e.localPosition.dx / width;
+
+                if (ratio <= 0.20) {
+                  _goToPreviousPage();
+                  return;
+                }
+                if (ratio >= 0.80) {
+                  _goToNextPage();
+                  return;
+                }
+
+                _toggleFocusMode();
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

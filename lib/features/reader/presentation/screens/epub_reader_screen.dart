@@ -51,6 +51,9 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
   bool _isUiVisible = true;
   String? _bookId;
 
+  Offset? _lastPointerDown;
+  int? _lastPointerDownMs;
+
   @override
   void initState() {
     super.initState();
@@ -314,37 +317,6 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
     );
   }
 
-  void _handleReaderTapZone(BuildContext context, TapUpDetails details) {
-    final width = MediaQuery.of(context).size.width;
-    final dx = details.localPosition.dx;
-    final ratio = dx / width;
-
-    if (ratio <= 0.20) {
-      _goToPreviousPage();
-      return;
-    }
-    if (ratio >= 0.80) {
-      _goToNextPage();
-      return;
-    }
-
-    _toggleFocusMode();
-  }
-
-  void _handleHorizontalDragEnd(DragEndDetails details) {
-    final settings = ref.read(readerSettingsProvider);
-    if (!settings.isHorizontal) return;
-
-    final v = details.primaryVelocity ?? 0.0;
-    if (v.abs() < 250) return;
-
-    if (v < 0) {
-      _goToNextPage();
-    } else {
-      _goToPreviousPage();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -378,21 +350,20 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
             )
           : null,
       drawer: _isUiVisible ? _buildDrawer() : null,
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTapUp: (d) => _handleReaderTapZone(context, d),
-        child: KeyboardListener(
-          focusNode: FocusNode()..requestFocus(),
-          onKeyEvent: (event) {
-            if (event is KeyDownEvent) {
-              if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-                _goToNextPage();
-              } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                _goToPreviousPage();
+      body: Stack(
+        children: [
+          KeyboardListener(
+            focusNode: FocusNode()..requestFocus(),
+            onKeyEvent: (event) {
+              if (event is KeyDownEvent) {
+                if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                  _goToNextPage();
+                } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                  _goToPreviousPage();
+                }
               }
-            }
-          },
-          child: FutureBuilder<EpubBook>(
+            },
+            child: FutureBuilder<EpubBook>(
           future: _epubBookFuture,
           builder: (context, snapshot) {
             if (snapshot.hasData) {
@@ -420,6 +391,7 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
 
                   return PageView.builder(
                     controller: _pageController,
+                    allowImplicitScrolling: true,
                     scrollDirection: settings.isHorizontal
                         ? Axis.horizontal
                         : Axis.vertical,
@@ -516,6 +488,41 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
           },
           ),
         ),
+          Positioned.fill(
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (e) {
+                _lastPointerDown = e.localPosition;
+                _lastPointerDownMs = DateTime.now().millisecondsSinceEpoch;
+              },
+              onPointerUp: (e) {
+                final down = _lastPointerDown;
+                final downMs = _lastPointerDownMs;
+                _lastPointerDown = null;
+                _lastPointerDownMs = null;
+                if (down == null || downMs == null) return;
+                final dt = DateTime.now().millisecondsSinceEpoch - downMs;
+                final dx = (e.localPosition.dx - down.dx).abs();
+                final dy = (e.localPosition.dy - down.dy).abs();
+                if (dt > 260 || dx > 18 || dy > 18) return;
+
+                final width = MediaQuery.of(context).size.width;
+                final ratio = e.localPosition.dx / width;
+
+                if (ratio <= 0.20) {
+                  _goToPreviousPage();
+                  return;
+                }
+                if (ratio >= 0.80) {
+                  _goToNextPage();
+                  return;
+                }
+
+                _toggleFocusMode();
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
