@@ -24,7 +24,7 @@ dependencies:
   permission_handler: ^11.3.1
   file_picker: ^8.0.0+1
   flutter_html: ^3.0.0-beta.2
-  image: ^3.3.0
+  image: ^4.2.0
   pdfx: ^2.4.0
   googleapis: ^13.1.0
   googleapis_auth: ^1.6.0
@@ -50,12 +50,20 @@ flutter_launcher_icons:
   android: true
   ios: true
   remove_alpha_ios: true
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
   web:
     generate: true
     image_path: "assets/icon/app_icon.png"
 
 dependency_overrides:
-  image: ^3.3.0
+  epubx:
+    path: vendor/epubx
+  image: ^4.2.0
 
 flutter:
   uses-material-design: true
