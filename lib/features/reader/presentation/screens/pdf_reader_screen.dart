@@ -39,6 +39,8 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
   String? _bookId;
   PdfDocument? _searchDocument;
 
+  double? _lastAppliedZoom;
+
   Offset? _lastPointerDown;
   int? _lastPointerDownMs;
 
@@ -229,6 +231,21 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    ref.listen(
+      readerSettingsProvider.select((s) => s.zoom),
+      (previous, next) {
+        if (_lastAppliedZoom == next) return;
+        _lastAppliedZoom = next;
+        if (_pdfViewerController.zoomLevel != next) {
+          _pdfViewerController.zoomLevel = next;
+        }
+      },
+    );
+  }
+
+  @override
   void dispose() {
     try {
       _searchDocument?.dispose();
@@ -330,13 +347,7 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
 
   Widget _buildReaderBody() {
     final settings = ref.watch(readerSettingsProvider);
-
-    // Sync zoom level if changed from settings
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_pdfViewerController.zoomLevel != settings.zoom) {
-        _pdfViewerController.zoomLevel = settings.zoom;
-      }
-    });
+    _lastAppliedZoom ??= settings.zoom;
 
     Widget reader = widget.fileBytes != null
         ? SfPdfViewer.memory(

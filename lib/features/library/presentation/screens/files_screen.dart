@@ -91,12 +91,36 @@ class FilesScreen extends ConsumerWidget {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'epub', 'mobi', 'fb2', 'txt', 'azw3'],
+      withData: true,
     );
     if (result != null) {
       final file = result.files.single;
       if (file.path != null) {
         await _handleImportedFile(file.path!, file.name, ref, context);
+        return;
       }
+
+      final bytes = file.bytes;
+      if (bytes == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Não foi possível acessar o arquivo selecionado.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final booksDir = Directory(p.join(appDir.path, 'books'));
+      if (!await booksDir.exists()) await booksDir.create(recursive: true);
+
+      final extension = file.name.split('.').last.toLowerCase();
+      final bookId = '${DateTime.now().millisecondsSinceEpoch}_${file.name.hashCode}';
+      final targetPath = p.join(booksDir.path, '$bookId.$extension');
+      await File(targetPath).writeAsBytes(bytes, flush: true);
+      await _handleImportedFile(targetPath, file.name, ref, context);
     }
   }
 

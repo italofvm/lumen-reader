@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:epubx/epubx.dart';
 import 'dart:io';
-import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen_reader/features/settings/domain/providers/settings_providers.dart';
 import 'package:lumen_reader/features/library/presentation/providers/library_providers.dart';
@@ -48,8 +47,12 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
   EpubBook? _loadedBook;
   bool _isCalculating = false;
   final Map<int, String> _sanitizedChapterHtml = {};
+  final Map<int, String> _chapterPlainText = {};
   bool _isUiVisible = true;
   String? _bookId;
+
+  double? _lastFontSize;
+  double? _lastZoom;
 
   Offset? _lastPointerDown;
   int? _lastPointerDownMs;
@@ -58,6 +61,21 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
   void initState() {
     super.initState();
     _epubBookFuture = _loadEpub();
+
+    ref.listen(
+      readerSettingsProvider.select((s) => (s.fontSize, s.zoom)),
+      (previous, next) {
+        final (fontSize, zoom) = next;
+        if (_lastFontSize == fontSize && _lastZoom == zoom) return;
+        _lastFontSize = fontSize;
+        _lastZoom = zoom;
+
+        if (_loadedBook != null) {
+          _virtualPages.clear();
+          setState(() {});
+        }
+      },
+    );
   }
 
   Future<List<ReaderSearchHit>> _searchInEpub(String query) async {
@@ -162,6 +180,20 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
     return sanitized;
   }
 
+  String _getChapterPlainText(int chapterIndex, String html) {
+    final cached = _chapterPlainText[chapterIndex];
+    if (cached != null) return cached;
+
+    final sanitized = _getSanitizedChapterHtml(chapterIndex, html);
+    final text = sanitized
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll(RegExp(r'&nbsp;'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    _chapterPlainText[chapterIndex] = text;
+    return text;
+  }
+
   Future<EpubBook> _loadEpub() async {
     final Uint8List bytes;
     if (widget.fileBytes != null) {
@@ -217,10 +249,8 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
     // Roughly 800-1200 characters per "page" depending on font size.
     for (int i = 0; i < chapters.length; i++) {
       final chapter = chapters[i];
-      final content = chapter.HtmlContent ?? '';
-
-      // Strip some HTML tags for char count estimation
-      final rawTextLen = content.replaceAll(RegExp(r'<[^>]*>'), '').length;
+      final plainText = _getChapterPlainText(i, chapter.HtmlContent ?? '');
+      final rawTextLen = plainText.length;
 
       // Base chars per page at 16pt font
       double charsPerPage = 1200 / (fontSize / 16.0) / zoom;
@@ -407,16 +437,11 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
                       final chapter = chapters[page.chapterIndex];
 
                       final child = RepaintBoundary(
-                        child: SelectionArea(
-                          child: Material(
-                            color: _getBackgroundColor(settings.colorMode),
-                            child: _buildPageContent(
-                              chapter,
-                              page,
-                              constraints,
-                              settings,
-                            ),
-                          ),
+                        child: _buildPageContent(
+                          chapter,
+                          page,
+                          constraints,
+                          settings,
                         ),
                       );
 
@@ -533,13 +558,12 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
     BoxConstraints constraints,
     dynamic settings,
   ) {
-    final initialOffset = page.pageIndexInSection * constraints.maxHeight;
-    final html =
-        _getSanitizedChapterHtml(page.chapterIndex, chapter.HtmlContent ?? '');
+    final plainText = _getChapterPlainText(
+      page.chapterIndex,
+      chapter.HtmlContent ?? '',
+    );
 
-    final hasRenderableContent =
-        html.replaceAll(RegExp(r'<[^>]*>'), '').trim().isNotEmpty;
-    if (!hasRenderableContent) {
+    if (plainText.trim().isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -555,18 +579,29 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
       );
     }
 
-    return _EpubVirtualPage(
-      key: ValueKey(
-        '${page.chapterIndex}:${page.pageIndexInSection}:${settings.fontSize}:${settings.zoom}:${settings.lineHeight}:${settings.fontFamily}:${settings.colorMode}',
-      ),
-      html: html,
-      initialOffset: initialOffset,
-      minHeight: constraints.maxHeight,
+    double charsPerPage = 1200 / (settings.fontSize / 16.0) / settings.zoom;
+    if (charsPerPage < 200) charsPerPage = 200;
+
+    final pageSize = charsPerPage.floor();
+    final start = (page.pageIndexInSection * pageSize).clamp(0, plainText.length);
+    final end = (start + pageSize).clamp(0, plainText.length);
+    final slice = start < end ? plainText.substring(start, end).trim() : '';
+
+    return Container(
+      color: _getBackgroundColor(settings.colorMode),
       padding: const EdgeInsets.all(16.0),
-      fontSize: settings.fontSize * settings.zoom,
-      fontFamily: settings.fontFamily,
-      textColor: _getTextColor(settings.colorMode),
-      lineHeight: settings.lineHeight,
+      alignment: Alignment.topLeft,
+      child: SelectionArea(
+        child: Text(
+          slice.isNotEmpty ? slice : plainText,
+          style: TextStyle(
+            fontSize: settings.fontSize * settings.zoom,
+            height: settings.lineHeight,
+            color: _getTextColor(settings.colorMode),
+            fontFamily: settings.fontFamily,
+          ),
+        ),
+      ),
     );
   }
 
@@ -682,85 +717,5 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
             .updateBookPosition(book.id, index.toString(), progress);
       } catch (_) {}
     });
-  }
-}
-
-class _EpubVirtualPage extends StatefulWidget {
-  final String html;
-  final double initialOffset;
-  final double minHeight;
-  final EdgeInsets padding;
-  final double fontSize;
-  final String fontFamily;
-  final Color textColor;
-  final double lineHeight;
-
-  const _EpubVirtualPage({
-    super.key,
-    required this.html,
-    required this.initialOffset,
-    required this.minHeight,
-    required this.padding,
-    required this.fontSize,
-    required this.fontFamily,
-    required this.textColor,
-    required this.lineHeight,
-  });
-
-  @override
-  State<_EpubVirtualPage> createState() => _EpubVirtualPageState();
-}
-
-class _EpubVirtualPageState extends State<_EpubVirtualPage>
-    with AutomaticKeepAliveClientMixin {
-  late final ScrollController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = ScrollController(initialScrollOffset: widget.initialOffset);
-  }
-
-  @override
-  void didUpdateWidget(covariant _EpubVirtualPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialOffset != widget.initialOffset && _controller.hasClients) {
-      _controller.jumpTo(widget.initialOffset);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    return ClipRect(
-      child: SingleChildScrollView(
-        physics: const NeverScrollableScrollPhysics(),
-        controller: _controller,
-        child: Container(
-          constraints: BoxConstraints(minHeight: widget.minHeight),
-          padding: widget.padding,
-          child: Html(
-            data: widget.html,
-            style: {
-              "body": Style(
-                fontSize: FontSize(widget.fontSize),
-                fontFamily: widget.fontFamily,
-                color: widget.textColor,
-                lineHeight: LineHeight.em(widget.lineHeight),
-              ),
-            },
-          ),
-        ),
-      ),
-    );
   }
 }

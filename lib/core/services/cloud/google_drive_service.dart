@@ -57,11 +57,11 @@ class GoogleDriveService {
 
     try {
       final fileList = await driveApi.files.list(
-        q: "trashed = false and (name contains '.pdf' or name contains '.epub' or name contains '.mobi' or name contains '.azw3' or name contains '.fb2' or name contains '.txt')",
+        q: "trashed = false and (fileExtension = 'pdf' or fileExtension = 'epub' or fileExtension = 'mobi' or fileExtension = 'azw3' or fileExtension = 'fb2' or fileExtension = 'txt')",
         spaces: 'drive',
         orderBy: 'modifiedTime desc',
         pageSize: 200,
-        $fields: 'files(id, name, mimeType, size)',
+        $fields: 'files(id, name, mimeType, size, fileExtension, modifiedTime)',
       );
       return fileList.files ?? [];
     } catch (e) {

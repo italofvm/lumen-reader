@@ -1,0 +1,46 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Build Windows (Release)
+        run: flutter build windows --release
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          $outDir = "build\\windows\\x64\\runner\\Release"
+          if (!(Test-Path $outDir)) {
+            Write-Error "Release output not found at $outDir"
+          }
+          $zipName = "lumen_reader-windows-x64.zip"
+          if (Test-Path $zipName) { Remove-Item $zipName -Force }
+          Compress-Archive -Path "$outDir\\*" -DestinationPath $zipName
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumen_reader-windows-x64
+          path: lumen_reader-windows-x64.zip
+          if-no-files-found: error
