@@ -33,3 +33,29 @@ lib/
 
 ## Integração de IA
 A IA será tratada como um serviço independente na camada de `Services`, acessada via Casos de Uso na camada de `Domain`.
+
+## Backend Proxy de IA (Render) — sem expor a chave
+Para uso em produção, o app **não** deve embutir a chave do Gemini. A estratégia é um **proxy backend** (Node.js + Express) implantado no Render.
+
+### Responsabilidade
+- Guardar `GEMINI_API_KEY` **apenas no servidor** (env var do Render).
+- Expor endpoint HTTP simples para o app.
+- Aplicar rate limit (por IP) e validação de payload.
+
+### Endpoints
+- `GET /health`
+- `POST /v1/ai/ask`
+
+Payload:
+```json
+{ "question": "...", "contextText": "...", "sourceLabel": "Capítulo 1, página 3" }
+```
+
+Resposta:
+```json
+{ "text": "..." }
+```
+
+### Integração no Flutter
+- Em produção: o app chama o proxy via `--dart-define=AI_PROXY_URL=https://<seu-servico>.onrender.com`.
+- Em desenvolvimento local: é possível usar `--dart-define=GEMINI_API_KEY=...` (opcional), mas não recomendado para releases.
