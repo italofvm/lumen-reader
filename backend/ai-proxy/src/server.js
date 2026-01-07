@@ -9,7 +9,7 @@ dotenv.config();
 
 const PORT = process.env.PORT || 10000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 
 if (!GEMINI_API_KEY.trim()) {
   // Intencionalmente não encerra o processo: permite subir no Render sem a env
@@ -45,28 +45,96 @@ app.get('/health', (req, res) => {
 
 async function listAvailableModels() {
   if (!GEMINI_API_KEY.trim()) return [];
-  const url = new URL('https://generativelanguage.googleapis.com/v1beta/models');
-  url.searchParams.set('key', GEMINI_API_KEY);
 
-  const resp = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-    },
-  });
+  const endpoints = [
+    'https://generativelanguage.googleapis.com/v1/models',
+    'https://generativelanguage.googleapis.com/v1beta/models',
+  ];
 
-  const bodyText = await resp.text();
-  if (!resp.ok) {
-    throw new Error(`ListModels falhou (HTTP ${resp.status}): ${bodyText}`);
+  let lastErr;
+  for (const endpoint of endpoints) {
+    try {
+      const url = new URL(endpoint);
+      url.searchParams.set('key', GEMINI_API_KEY);
+
+      const resp = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      const bodyText = await resp.text();
+      if (!resp.ok) {
+        throw new Error(`ListModels falhou em ${endpoint} (HTTP ${resp.status}): ${bodyText}`);
+      }
+
+      const data = JSON.parse(bodyText);
+      const models = Array.isArray(data?.models) ? data.models : [];
+      return models.map((m) => ({
+        name: m?.name,
+        displayName: m?.displayName,
+        supportedGenerationMethods: m?.supportedGenerationMethods,
+      }));
+    } catch (e) {
+      lastErr = e;
+    }
   }
 
-  const data = JSON.parse(bodyText);
-  const models = Array.isArray(data?.models) ? data.models : [];
-  return models.map((m) => ({
-    name: m?.name,
-    displayName: m?.displayName,
-    supportedGenerationMethods: m?.supportedGenerationMethods,
-  }));
+  throw lastErr ?? new Error('ListModels falhou.');
+}
+
+async function generateContentViaRest({ modelName, prompt }) {
+  if (!GEMINI_API_KEY.trim()) {
+    throw new Error('GEMINI_API_KEY não configurada no servidor.');
+  }
+
+  const normalized = modelName.startsWith('models/') ? modelName : `models/${modelName}`;
+  const endpoints = [
+    `https://generativelanguage.googleapis.com/v1/${normalized}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/${normalized}:generateContent`,
+  ];
+
+  let last;
+  for (const endpoint of endpoints) {
+    const url = new URL(endpoint);
+    url.searchParams.set('key', GEMINI_API_KEY);
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.4,
+        },
+      }),
+    });
+
+    const bodyText = await resp.text();
+
+    if (resp.ok) {
+      const data = JSON.parse(bodyText);
+      const text =
+        data?.candidates?.[0]?.content?.parts
+          ?.map((p) => (typeof p?.text === 'string' ? p.text : ''))
+          .join('') ??
+        '';
+      return text;
+    }
+
+    // 404 de modelo: tentar próximo endpoint/modelo.
+    if (resp.status === 404 && bodyText.includes('models/')) {
+      last = new Error(`Model not found at ${endpoint}: ${bodyText}`);
+      continue;
+    }
+
+    throw new Error(`GenerateContent falhou em ${endpoint} (HTTP ${resp.status}): ${bodyText}`);
+  }
+
+  throw last ?? new Error('Falha ao gerar conteúdo.');
 }
 
 app.get('/v1/ai/models', async (req, res) => {
@@ -129,9 +197,11 @@ app.post('/v1/ai/ask', async (req, res) => {
 
     const modelCandidates = [
       GEMINI_MODEL,
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-flash-001',
-      'gemini-pro',
+      'gemini-flash-latest',
+      'gemini-pro-latest',
+      'gemini-2.0-flash',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash-lite',
     ].map((m) => m.trim()).filter((m) => m.length > 0);
 
     const ac = new AbortController();
@@ -139,17 +209,12 @@ app.post('/v1/ai/ask', async (req, res) => {
 
     try {
       let lastError;
-      let result;
+      let text;
 
       for (const modelName of modelCandidates) {
         try {
-          const model = genAI.getGenerativeModel({ model: modelName });
-          result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.4,
-            },
-          });
+          // Preferimos REST v1 (estável). O SDK Node ainda usa v1beta e pode retornar 404.
+          text = await generateContentViaRest({ modelName, prompt });
           break;
         } catch (err) {
           lastError = err;
@@ -182,11 +247,9 @@ app.post('/v1/ai/ask', async (req, res) => {
         }
       }
 
-      if (!result) {
+      if (!text || text.trim().isEmpty) {
         throw lastError ?? new Error('Falha ao gerar conteúdo com modelos candidatos.');
       }
-
-      const text = result.response.text();
       res.json({ text });
     } finally {
       clearTimeout(timeout);
