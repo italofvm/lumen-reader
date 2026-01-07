@@ -9,6 +9,7 @@ dotenv.config();
 
 const PORT = process.env.PORT || 10000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
 
 if (!GEMINI_API_KEY.trim()) {
   // Intencionalmente não encerra o processo: permite subir no Render sem a env
@@ -82,18 +83,47 @@ app.post('/v1/ai/ask', async (req, res) => {
       contextText +
       '\n"""\n';
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const modelCandidates = [
+      GEMINI_MODEL,
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-flash-001',
+      'gemini-pro',
+    ].map((m) => m.trim()).filter((m) => m.length > 0);
 
     const ac = new AbortController();
     const timeout = setTimeout(() => ac.abort(), 15000);
 
     try {
-      const result = await model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.4,
-        },
-      });
+      let lastError;
+      let result;
+
+      for (const modelName of modelCandidates) {
+        try {
+          const model = genAI.getGenerativeModel({ model: modelName });
+          result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.4,
+            },
+          });
+          break;
+        } catch (err) {
+          lastError = err;
+          const msg =
+            err && typeof err === 'object' && 'message' in err
+              ? String(err.message)
+              : String(err);
+
+          const isModel404 = msg.includes('404') && msg.includes('models/');
+          if (!isModel404) {
+            throw err;
+          }
+        }
+      }
+
+      if (!result) {
+        throw lastError ?? new Error('Falha ao gerar conteúdo com modelos candidatos.');
+      }
 
       const text = result.response.text();
       res.json({ text });
@@ -103,8 +133,25 @@ app.post('/v1/ai/ask', async (req, res) => {
       // então o timeout é best-effort.
     }
   } catch (e) {
-    console.error('AI ask error:', e);
-    res.status(500).json({ error: 'Erro interno ao processar IA.' });
+    const message =
+      e && typeof e === 'object' && 'message' in e ? String(e.message) : String(e);
+
+    // Alguns erros do SDK vêm com detalhes adicionais; mantemos o retorno sanitizado.
+    const status =
+      e && typeof e === 'object' && 'status' in e && Number.isFinite(Number(e.status))
+        ? Number(e.status)
+        : undefined;
+
+    console.error('AI ask error:', {
+      message,
+      status,
+    });
+
+    res.status(500).json({
+      error: 'Erro interno ao processar IA.',
+      cause: message,
+      status,
+    });
   }
 });
 

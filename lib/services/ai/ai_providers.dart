@@ -9,12 +9,12 @@ const String _proxyUrl = String.fromEnvironment('AI_PROXY_URL');
 class _MissingKeyAIService implements AIService {
   @override
   Future<String> explainText(String text) async {
-    return 'Chave da Gemini não configurada. Execute com --dart-define=GEMINI_API_KEY=...';
+    return 'IA não configurada. Em produção use --dart-define=AI_PROXY_URL=https://... (Render). Em dev use --dart-define=GEMINI_API_KEY=...';
   }
 
   @override
   Future<String> summarizeContent(String content) async {
-    return 'Chave da Gemini não configurada. Execute com --dart-define=GEMINI_API_KEY=...';
+    return 'IA não configurada. Em produção use --dart-define=AI_PROXY_URL=https://... (Render). Em dev use --dart-define=GEMINI_API_KEY=...';
   }
 
   @override
@@ -23,7 +23,7 @@ class _MissingKeyAIService implements AIService {
     required String contextText,
     required String sourceLabel,
   }) async {
-    return 'Chave da Gemini não configurada. Execute com --dart-define=GEMINI_API_KEY=...';
+    return 'IA não configurada. Em produção use --dart-define=AI_PROXY_URL=https://... (Render). Em dev use --dart-define=GEMINI_API_KEY=...';
   }
 }
 
