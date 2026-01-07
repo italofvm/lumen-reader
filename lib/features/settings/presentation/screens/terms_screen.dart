@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class TermsScreen extends StatelessWidget {
   const TermsScreen({super.key});
+
+  Future<String> _getVersionLabel() async {
+    final info = await PackageInfo.fromPlatform();
+    return '${info.version}+${info.buildNumber}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,11 +55,16 @@ class TermsScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    'Lumen Reader v1.2.3',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: cs.onSurface.withAlpha((0.78 * 255).round()),
-                    ),
+                  FutureBuilder<String>(
+                    future: _getVersionLabel(),
+                    builder: (context, snapshot) {
+                      return Text(
+                        'Lumen Reader v${snapshot.data ?? '...'}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: cs.onSurface.withAlpha((0.78 * 255).round()),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 4),
                   Text(
