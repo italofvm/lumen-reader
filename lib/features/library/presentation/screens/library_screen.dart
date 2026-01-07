@@ -263,9 +263,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                           const GoogleDrivePickerScreen(),
                                     ),
                                   );
-                                  if (result != null &&
-                                      result is Map<String, String>) {
-                                    _handleImportedFile(
+                                  if (!context.mounted) return;
+                                  if (result != null && result is Map<String, String>) {
+                                    await _handleImportedFile(
                                       result['path']!,
                                       result['name']!,
                                       ref,
@@ -376,7 +376,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               sigmaY: 5.0,
                             ),
                             child: Container(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withAlpha((0.3 * 255).round()),
                             ),
                           ),
                         ),
@@ -403,9 +403,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                         shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black.withOpacity(
-                                              0.2,
-                                            ),
+                                            color: Colors.black.withAlpha((0.2 * 255).round()),
                                             blurRadius: 10,
                                             offset: const Offset(0, 4),
                                           ),
@@ -451,7 +449,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                                 .bodySmall
                                                 ?.copyWith(
                                                   color: Colors.white
-                                                      .withOpacity(0.9),
+                                                      .withAlpha((0.9 * 255).round()),
                                                   fontSize: 13,
                                                   fontWeight: FontWeight.w500,
                                                 ),
@@ -481,12 +479,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           ListTile(
                             leading: Icon(
                               Icons.history,
-                              color: cs.onSurface.withOpacity(0.90),
+                              color: cs.onSurface.withAlpha((0.90 * 255).round()),
                             ),
                             title: Text(
                               'Lista recente',
                               style: TextStyle(
-                                color: cs.onSurface.withOpacity(0.92),
+                                color: cs.onSurface.withAlpha((0.92 * 255).round()),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -502,7 +500,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           ),
                           ListTile(
                             selected: true,
-                            selectedTileColor: cs.primary.withOpacity(0.12),
+                            selectedTileColor: cs.primary.withAlpha((0.12 * 255).round()),
                             leading: Icon(
                               Icons.book,
                               color: cs.primary,
@@ -519,12 +517,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           ListTile(
                             leading: Icon(
                               Icons.folder_open,
-                              color: cs.onSurface.withOpacity(0.90),
+                              color: cs.onSurface.withAlpha((0.90 * 255).round()),
                             ),
                             title: Text(
                               'Meus Arquivos',
                               style: TextStyle(
-                                color: cs.onSurface.withOpacity(0.92),
+                                color: cs.onSurface.withAlpha((0.92 * 255).round()),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -552,16 +550,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: ListTile(
-                tileColor: cs.surfaceContainerHighest.withOpacity(isDark ? 0.25 : 0.35),
-                leading: Icon(Icons.settings, color: cs.onSurface.withOpacity(0.92)),
+                tileColor: cs.surfaceContainerHighest.withAlpha(((isDark ? 0.25 : 0.35) * 255).round()),
+                leading: Icon(Icons.settings, color: cs.onSurface.withAlpha((0.92 * 255).round())),
                 title: Text(
                   'Configurações',
                   style: TextStyle(
-                    color: cs.onSurface.withOpacity(0.92),
+                    color: cs.onSurface.withAlpha((0.92 * 255).round()),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                trailing: Icon(Icons.chevron_right_rounded, color: cs.onSurface.withOpacity(0.55)),
+                trailing: Icon(Icons.chevron_right_rounded, color: cs.onSurface.withAlpha((0.55 * 255).round())),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -707,10 +705,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           );
         }
         await openAppSettings();
+        if (!context.mounted) return;
         return;
       }
     }
 
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Escaneando pastas comuns...')),
     );
@@ -844,17 +844,33 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         return;
       }
 
+      final bookId = DateTime.now().millisecondsSinceEpoch.toString();
+      final appDir = await getApplicationDocumentsDirectory();
+      final booksDir = Directory(p.join(appDir.path, 'books'));
+      if (!await booksDir.exists()) await booksDir.create(recursive: true);
+      final targetPath = p.join(booksDir.path, '$bookId.$extension');
+
       if (file.path != null) {
         final sourcePath = file.path!;
-        final bookId = DateTime.now().millisecondsSinceEpoch.toString();
-        final appDir = await getApplicationDocumentsDirectory();
-        final booksDir = Directory(p.join(appDir.path, 'books'));
-        if (!await booksDir.exists()) await booksDir.create(recursive: true);
-        final targetPath = p.join(booksDir.path, '$bookId.$extension');
         await File(sourcePath).copy(targetPath);
-
         await _handleImportedFile(targetPath, fileName, ref);
+        return;
       }
+
+      final bytes = file.bytes;
+      if (bytes == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Não foi possível acessar o arquivo selecionado.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      await File(targetPath).writeAsBytes(bytes, flush: true);
+      await _handleImportedFile(targetPath, fileName, ref);
     }
   }
 
@@ -1050,7 +1066,7 @@ class _GridBackgroundPainter extends CustomPainter {
     // Dark background is already set by Scaffold
 
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.05)
+      ..color = Colors.white.withAlpha((0.05 * 255).round())
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
@@ -1096,10 +1112,10 @@ class _SideBySideBookCard extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isDark ? Colors.grey[900]?.withOpacity(0.5) : Colors.grey[100],
+          color: isDark ? Colors.grey[900]?.withAlpha((0.5 * 255).round()) : Colors.grey[100],
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: (isDark ? Colors.white : Colors.black).withOpacity(0.05),
+            color: (isDark ? Colors.white : Colors.black).withAlpha((0.05 * 255).round()),
           ),
         ),
         child: Row(

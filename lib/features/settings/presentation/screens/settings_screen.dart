@@ -8,6 +8,7 @@ import 'package:lumen_reader/core/services/update/app_update_service.dart';
 import 'package:lumen_reader/features/settings/domain/providers/settings_providers.dart';
 import 'package:lumen_reader/features/library/presentation/providers/library_providers.dart';
 import 'package:lumen_reader/features/settings/presentation/screens/terms_screen.dart';
+import 'package:lumen_reader/features/onboarding/presentation/screens/onboarding_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -142,12 +143,8 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 ToggleButtons(
                   isSelected: [
-                    readerSettings.fontFamily == 'Merriweather', // Serifa
-                    readerSettings.fontFamily == 'Roboto' ||
-                        readerSettings.fontFamily == 'Open Sans' ||
-                        readerSettings.fontFamily == 'Lato' ||
-                        readerSettings.fontFamily ==
-                            'Sora', // Sem Serifa (simplified logic)
+                    readerSettings.fontFamily == 'Merriweather',
+                    readerSettings.fontFamily != 'Merriweather',
                   ],
                   onPressed: (index) {
                     if (index == 0) {
@@ -177,6 +174,30 @@ class SettingsScreen extends ConsumerWidget {
                       child: Text('Sem Serifa'),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: readerSettings.fontFamily,
+                  decoration: const InputDecoration(
+                    labelText: 'Fonte',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Merriweather', child: Text('Merriweather (Serif)')),
+                    DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
+                    DropdownMenuItem(value: 'Open Sans', child: Text('Open Sans')),
+                    DropdownMenuItem(value: 'Lato', child: Text('Lato')),
+                    DropdownMenuItem(value: 'Sora', child: Text('Sora')),
+                    DropdownMenuItem(value: 'Inter', child: Text('Inter')),
+                    DropdownMenuItem(value: 'Montserrat', child: Text('Montserrat')),
+                    DropdownMenuItem(value: 'Poppins', child: Text('Poppins')),
+                    DropdownMenuItem(value: 'Source Sans 3', child: Text('Source Sans 3')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    ref.read(readerSettingsProvider.notifier).setFontFamily(value);
+                  },
                 ),
               ],
             ),
@@ -278,6 +299,27 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(),
 
           _buildSectionHeader(context, 'Sobre'),
+          ListTile(
+            leading: const Icon(Icons.school_outlined),
+            title: const Text('Ver tutorial'),
+            subtitle: const Text('Aprenda a usar o app na primeira vez'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => OnboardingScreen(
+                    onFinish: () {
+                      ref
+                          .read(readerSettingsProvider.notifier)
+                          .setOnboardingSeen(true);
+                      Navigator.pop(context);
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.system_update),
             title: const Text('Verificar atualizações'),

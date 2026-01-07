@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:epubx/epubx.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -32,7 +33,7 @@ class BookUtils {
         return coverPath;
       }
     } catch (e) {
-      print('Error extracting cover: $e');
+      debugPrint('Error extracting cover: $e');
     }
     return null;
   }
@@ -65,7 +66,7 @@ class BookUtils {
         return coverPath;
       }
     } catch (e) {
-      print('Error extracting PDF cover: $e');
+      debugPrint('Error extracting PDF cover: $e');
     }
     return null;
   }

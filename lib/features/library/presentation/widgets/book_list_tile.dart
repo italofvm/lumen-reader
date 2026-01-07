@@ -34,7 +34,7 @@ class BookListTile extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(4),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withAlpha((0.1 * 255).round()),
                     blurRadius: 4,
                     offset: const Offset(1, 1),
                   ),

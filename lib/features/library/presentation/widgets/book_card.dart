@@ -29,8 +29,8 @@ class BookCover extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.85),
-              Theme.of(context).colorScheme.tertiary.withOpacity(0.65),
+              Theme.of(context).colorScheme.primary.withAlpha((0.85 * 255).round()),
+              Theme.of(context).colorScheme.tertiary.withAlpha((0.65 * 255).round()),
             ],
           ),
         ),
@@ -39,7 +39,7 @@ class BookCover extends StatelessWidget {
             book.type == BookType.pdf
                 ? Icons.picture_as_pdf_rounded
                 : Icons.menu_book_rounded,
-            color: Colors.white.withOpacity(0.92),
+            color: Colors.white.withAlpha((0.92 * 255).round()),
             size: 34,
           ),
         ),
@@ -54,7 +54,7 @@ class BookCover extends StatelessWidget {
         borderRadius: radius,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.35 : 0.12),
+            color: Colors.black.withAlpha(((isDark ? 0.35 : 0.12) * 255).round()),
             blurRadius: 14,
             offset: const Offset(0, 8),
           ),
@@ -98,16 +98,16 @@ class _BookCardState extends ConsumerState<BookCard> {
     final isWoodShelf = ref.watch(readerSettingsProvider).isWoodShelf;
 
     final glassBg = isWoodShelf
-        ? Colors.black.withOpacity(0.44)
-        : Colors.white.withOpacity(0.18);
+        ? Colors.black.withAlpha((0.44 * 255).round())
+        : Colors.white.withAlpha((0.18 * 255).round());
     final glassBorder = isWoodShelf
-        ? Colors.white.withOpacity(0.10)
-        : Colors.white.withOpacity(0.18);
+        ? Colors.white.withAlpha((0.10 * 255).round())
+        : Colors.white.withAlpha((0.18 * 255).round());
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF1E1E2A);
     final secondaryColor = isDark
-        ? Colors.white.withOpacity(0.70)
+        ? Colors.white.withAlpha((0.70 * 255).round())
         : const Color(0xFF6B6B7A);
 
     return Material(
@@ -154,8 +154,8 @@ class _BookCardState extends ConsumerState<BookCard> {
                                   end: Alignment.bottomCenter,
                                   colors: [
                                     Colors.transparent,
-                                    Colors.black.withOpacity(0.14),
-                                    Colors.black.withOpacity(0.60),
+                                    Colors.black.withAlpha((0.14 * 255).round()),
+                                    Colors.black.withAlpha((0.60 * 255).round()),
                                   ],
                                   stops: const [0.55, 0.75, 1.0],
                                 ),
@@ -204,9 +204,7 @@ class _BookCardState extends ConsumerState<BookCard> {
                                         color: Colors.white,
                                         shadows: [
                                           Shadow(
-                                            color: Colors.black.withOpacity(
-                                              0.45,
-                                            ),
+                                            color: Colors.black.withAlpha((0.45 * 255).round()),
                                             blurRadius: 12,
                                             offset: const Offset(0, 2),
                                           ),
@@ -223,12 +221,10 @@ class _BookCardState extends ConsumerState<BookCard> {
                                         fontSize: 11,
                                         height: 1.1,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.white.withOpacity(0.82),
+                                        color: Colors.white.withAlpha((0.82 * 255).round()),
                                         shadows: [
                                           Shadow(
-                                            color: Colors.black.withOpacity(
-                                              0.35,
-                                            ),
+                                            color: Colors.black.withAlpha((0.35 * 255).round()),
                                             blurRadius: 10,
                                             offset: const Offset(0, 2),
                                           ),
@@ -248,7 +244,7 @@ class _BookCardState extends ConsumerState<BookCard> {
                                               child: LinearProgressIndicator(
                                                 value: widget.book.progress,
                                                 backgroundColor: Colors.white
-                                                    .withOpacity(0.18),
+                                                    .withAlpha((0.18 * 255).round()),
                                                 valueColor:
                                                     const AlwaysStoppedAnimation<Color>(
                                                   Colors.white,
@@ -294,12 +290,12 @@ class _BookCardState extends ConsumerState<BookCard> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: isDark
-                                        ? Colors.black.withOpacity(0.35)
-                                        : Colors.white.withOpacity(0.70),
+                                        ? Colors.black.withAlpha((0.35 * 255).round())
+                                        : Colors.white.withAlpha((0.70 * 255).round()),
                                     border: Border.all(
                                       color: isDark
-                                          ? Colors.white.withOpacity(0.10)
-                                          : Colors.black.withOpacity(0.06),
+                                          ? Colors.white.withAlpha((0.10 * 255).round())
+                                          : Colors.black.withAlpha((0.06 * 255).round()),
                                     ),
                                   ),
                                   child: Text(
@@ -375,11 +371,11 @@ class _BookCardState extends ConsumerState<BookCard> {
                           width: 34,
                           height: 34,
                           decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.92),
+                            color: Colors.red.withAlpha((0.92 * 255).round()),
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.20),
+                                color: Colors.black.withAlpha((0.20 * 255).round()),
                                 blurRadius: 10,
                                 offset: const Offset(0, 6),
                               ),

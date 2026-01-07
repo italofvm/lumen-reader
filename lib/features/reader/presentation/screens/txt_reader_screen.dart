@@ -6,12 +6,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen_reader/features/library/presentation/providers/library_providers.dart';
-import 'package:lumen_reader/features/settings/domain/providers/settings_providers.dart';
-import 'package:lumen_reader/features/reader/services/providers.dart';
 import 'package:lumen_reader/features/reader/presentation/widgets/bookmarks_sheet.dart';
+import 'package:lumen_reader/features/reader/presentation/widgets/ai_explanation_dialog.dart';
+import 'package:lumen_reader/features/reader/presentation/widgets/ai_summary_dialog.dart';
+import 'package:lumen_reader/features/reader/presentation/widgets/reader_settings_sheet.dart';
+import 'package:lumen_reader/features/reader/services/providers.dart';
+import 'package:lumen_reader/features/settings/domain/providers/settings_providers.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:lumen_reader/features/reader/presentation/widgets/ask_book_dialog.dart';
-
-import '../widgets/reader_settings_sheet.dart';
 
 class TxtReaderScreen extends ConsumerStatefulWidget {
   final String title;
@@ -53,6 +55,76 @@ class _TxtReaderScreenState extends ConsumerState<TxtReaderScreen> {
     );
   }
 
+  void _summarizeCurrent(BuildContext context) {
+    final ctxText = _getAskContext();
+    if (ctxText.trim().isEmpty) {
+      _showSnackBar('Não foi possível obter texto deste trecho.');
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AISummaryDialog(
+        title: widget.title,
+        content: ctxText,
+      ),
+    );
+  }
+
+  void _explainCurrent(BuildContext context) {
+    final ctxText = _getAskContext();
+    if (ctxText.trim().isEmpty) {
+      _showSnackBar('Não foi possível obter texto deste trecho.');
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AIExplanationDialog(selectedText: ctxText),
+    );
+  }
+
+  Future<void> _promptTranslateOrDefine(BuildContext context) async {
+    final controller = TextEditingController();
+    final term = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Traduzir / Definir'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Palavra ou frase',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+    final t = term?.trim() ?? '';
+    if (!context.mounted) return;
+    if (t.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AISummaryDialog(
+        title: 'Traduzir/Definir',
+        content:
+            'Traduza para português (se necessário) e explique de forma simples, com exemplos de uso, o texto: "$t"',
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +136,27 @@ class _TxtReaderScreenState extends ConsumerState<TxtReaderScreen> {
     setState(() {
       _isUiVisible = !_isUiVisible;
     });
+  }
+
+  TextStyle _readerTextStyle(ReaderSettingsState settings) {
+    final family = settings.fontFamily.trim().isEmpty
+        ? 'Merriweather'
+        : settings.fontFamily.trim();
+    try {
+      return GoogleFonts.getFont(
+        family,
+        fontSize: settings.fontSize * settings.zoom,
+        height: settings.lineHeight,
+        color: _fg(settings.colorMode),
+      );
+    } catch (_) {
+      return TextStyle(
+        fontSize: settings.fontSize * settings.zoom,
+        height: settings.lineHeight,
+        color: _fg(settings.colorMode),
+        fontFamily: family,
+      );
+    }
   }
 
   String _getAskContext() {
@@ -247,7 +340,7 @@ class _TxtReaderScreenState extends ConsumerState<TxtReaderScreen> {
     switch (colorMode) {
       case 'dark':
       case 'midnight':
-        return Colors.white.withOpacity(0.92);
+        return Colors.white.withAlpha((0.92 * 255).round());
       default:
         return const Color(0xFF1E1E2A);
     }
@@ -271,6 +364,21 @@ class _TxtReaderScreenState extends ConsumerState<TxtReaderScreen> {
                       builder: (context) => const ReaderSettingsSheet(),
                     );
                   },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.summarize),
+                  onPressed: () => _summarizeCurrent(context),
+                  tooltip: 'Resumir trecho',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.psychology),
+                  onPressed: () => _explainCurrent(context),
+                  tooltip: 'Explicar trecho',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.translate),
+                  onPressed: () => _promptTranslateOrDefine(context),
+                  tooltip: 'Traduzir/Definir',
                 ),
                 IconButton(
                   icon: const Icon(Icons.bookmark_border),
@@ -298,12 +406,7 @@ class _TxtReaderScreenState extends ConsumerState<TxtReaderScreen> {
                         padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
                         child: Text(
                           _content!,
-                          style: TextStyle(
-                            fontSize: settings.fontSize * settings.zoom,
-                            height: settings.lineHeight,
-                            color: _fg(settings.colorMode),
-                            fontFamily: settings.fontFamily,
-                          ),
+                          style: _readerTextStyle(settings),
                         ),
                       ),
                     ),

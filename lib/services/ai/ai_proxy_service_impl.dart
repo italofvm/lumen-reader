@@ -19,25 +19,48 @@ class AIProxyServiceImpl implements AIService {
     return Uri.parse('$b/v1/ai/ask');
   }
 
+  String _clip(String value, int max) {
+    if (value.length <= max) return value;
+    return value.substring(0, max);
+  }
+
   Future<String> _ask({
     required String question,
     required String contextText,
     required String sourceLabel,
   }) async {
+    final safeQuestion = _clip(question, 2000);
+    final safeContext = _clip(contextText, 20000);
+    final safeSource = _clip(sourceLabel, 200);
+
     final res = await _client.post(
       _askUri(),
       headers: const {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
-        'question': question,
-        'contextText': contextText,
-        'sourceLabel': sourceLabel,
+        'question': safeQuestion,
+        'contextText': safeContext,
+        'sourceLabel': safeSource,
       }),
     );
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('AI proxy erro: HTTP ${res.statusCode}');
+      try {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic>) {
+          final err = decoded['error'];
+          final cause = decoded['cause'];
+          final msg = [
+            if (err is String && err.trim().isNotEmpty) err.trim(),
+            if (cause is String && cause.trim().isNotEmpty) cause.trim(),
+          ].join(' - ');
+          if (msg.isNotEmpty) {
+            throw Exception('IA indisponível: $msg');
+          }
+        }
+      } catch (_) {}
+      throw Exception('IA indisponível (HTTP ${res.statusCode}).');
     }
 
     final data = jsonDecode(res.body);

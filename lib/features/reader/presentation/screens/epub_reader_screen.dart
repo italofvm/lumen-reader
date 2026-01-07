@@ -3,12 +3,15 @@ import 'package:epubx/epubx.dart';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen_reader/features/settings/domain/providers/settings_providers.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:lumen_reader/features/library/presentation/providers/library_providers.dart';
 import '../widgets/reader_settings_sheet.dart';
 import 'package:lumen_reader/features/reader/services/providers.dart';
 import 'package:lumen_reader/features/reader/presentation/widgets/bookmarks_sheet.dart';
 import 'package:lumen_reader/features/reader/presentation/widgets/reader_search_sheet.dart';
 import 'package:lumen_reader/features/reader/presentation/widgets/ask_book_dialog.dart';
+import 'package:lumen_reader/features/reader/presentation/widgets/ai_explanation_dialog.dart';
+import 'package:lumen_reader/features/reader/presentation/widgets/ai_summary_dialog.dart';
 
 import 'package:flutter/services.dart';
 
@@ -476,9 +479,91 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
     return slice.isNotEmpty ? slice : plainText;
   }
 
+  void _summarizeCurrent(BuildContext context) {
+    final ctxText = _getAskContext();
+    if (ctxText.trim().isEmpty) {
+      _showSimpleSnackBar(
+        context,
+        'Não foi possível obter texto desta página. Tente virar a página ou aguarde o carregamento do capítulo.',
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AISummaryDialog(
+        title: widget.title,
+        content: ctxText,
+      ),
+    );
+  }
+
+  void _explainCurrent(BuildContext context) {
+    final ctxText = _getAskContext();
+    if (ctxText.trim().isEmpty) {
+      _showSimpleSnackBar(
+        context,
+        'Não foi possível obter texto desta página. Tente virar a página ou aguarde o carregamento do capítulo.',
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AIExplanationDialog(selectedText: ctxText),
+    );
+  }
+
+  Future<void> _promptTranslateOrDefine(BuildContext context) async {
+    final controller = TextEditingController();
+    final term = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Traduzir / Definir'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Palavra ou frase',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+    final t = term?.trim() ?? '';
+    if (!context.mounted) return;
+    if (t.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AISummaryDialog(
+        title: 'Traduzir/Definir',
+        content:
+            'Traduza para português (se necessário) e explique de forma simples, com exemplos de uso, o texto: "$t"',
+      ),
+    );
+  }
+
   void _askBook(BuildContext context) {
     final ctxText = _getAskContext();
-    if (ctxText.trim().isEmpty) return;
+    if (ctxText.trim().isEmpty) {
+      _showSimpleSnackBar(
+        context,
+        'Não foi possível obter texto desta página. Tente virar a página ou aguarde o carregamento do capítulo.',
+      );
+      return;
+    }
 
     String sourceLabel = 'EPUB';
     if (_virtualPages.isNotEmpty &&
@@ -520,6 +605,21 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
                   icon: const Icon(Icons.search),
                   onPressed: () => _openSearch(context),
                   tooltip: 'Buscar no livro',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.summarize),
+                  onPressed: () => _summarizeCurrent(context),
+                  tooltip: 'Resumir trecho',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.psychology),
+                  onPressed: () => _explainCurrent(context),
+                  tooltip: 'Explicar trecho',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.translate),
+                  onPressed: () => _promptTranslateOrDefine(context),
+                  tooltip: 'Traduzir/Definir',
                 ),
                 IconButton(
                   icon: const Icon(Icons.question_answer),
@@ -762,12 +862,7 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
           child: SelectionArea(
             child: Text(
               slice.isNotEmpty ? slice : plainText,
-              style: TextStyle(
-                fontSize: settings.fontSize * settings.zoom,
-                height: settings.lineHeight,
-                color: _getTextColor(settings.colorMode),
-                fontFamily: settings.fontFamily,
-              ),
+              style: _readerTextStyle(settings),
             ),
           ),
         ),
@@ -849,6 +944,27 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
         return Colors.white;
       default:
         return Colors.black87;
+    }
+  }
+
+  TextStyle _readerTextStyle(ReaderSettingsState settings) {
+    final family = settings.fontFamily.trim().isEmpty
+        ? 'Merriweather'
+        : settings.fontFamily.trim();
+    try {
+      return GoogleFonts.getFont(
+        family,
+        fontSize: settings.fontSize * settings.zoom,
+        height: settings.lineHeight,
+        color: _getTextColor(settings.colorMode),
+      );
+    } catch (_) {
+      return TextStyle(
+        fontSize: settings.fontSize * settings.zoom,
+        height: settings.lineHeight,
+        color: _getTextColor(settings.colorMode),
+        fontFamily: family,
+      );
     }
   }
 

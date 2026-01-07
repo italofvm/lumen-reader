@@ -14,6 +14,7 @@ class ReaderSettingsState {
   final double brightness;
   final double zoom;
   final String colorMode; // 'normal', 'sepia', 'paper', 'dark', 'midnight'
+  final bool onboardingSeen;
   final bool isCloudSyncEnabled;
   final bool isCloudSyncLoading;
   final String? cloudAccountEmail;
@@ -34,6 +35,7 @@ class ReaderSettingsState {
     this.brightness = 0.5,
     this.zoom = 1.0,
     this.colorMode = 'normal',
+    this.onboardingSeen = false,
     this.isCloudSyncEnabled = false,
     this.isCloudSyncLoading = false,
     this.cloudAccountEmail,
@@ -55,6 +57,7 @@ class ReaderSettingsState {
     double? brightness,
     double? zoom,
     String? colorMode,
+    bool? onboardingSeen,
     bool? isCloudSyncEnabled,
     bool? isCloudSyncLoading,
     String? cloudAccountEmail,
@@ -75,6 +78,7 @@ class ReaderSettingsState {
       brightness: brightness ?? this.brightness,
       zoom: zoom ?? this.zoom,
       colorMode: colorMode ?? this.colorMode,
+      onboardingSeen: onboardingSeen ?? this.onboardingSeen,
       isCloudSyncEnabled: isCloudSyncEnabled ?? this.isCloudSyncEnabled,
       isCloudSyncLoading: isCloudSyncLoading ?? this.isCloudSyncLoading,
       cloudAccountEmail: cloudAccountEmail ?? this.cloudAccountEmail,
@@ -98,6 +102,7 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettingsState> {
   static const String _keyLineHeight = 'line_height';
   static const String _keyCloudSync = 'cloud_sync_enabled';
   static const String _keyColorMode = 'color_mode';
+  static const String _keyOnboardingSeen = 'onboarding_seen';
   static const String _keyIsHorizontal = 'is_horizontal';
   static const String _keyPageTransition = 'page_transition';
   static const String _keyIsDarkMode = 'is_dark_mode';
@@ -114,8 +119,8 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettingsState> {
   ReaderSettingsNotifier(this._ref)
     : super(
         const ReaderSettingsState(
-          fontSize: 18.0,
-          fontFamily: 'Serif',
+          fontSize: 14.0,
+          fontFamily: 'Merriweather',
           lineHeight: 1.5,
           brightness: 0.5,
           zoom: 1.0,
@@ -146,11 +151,13 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettingsState> {
 
   Future<void> _loadSettings() async {
     final box = await Hive.openBox(_boxName);
-    final fontSize = box.get(_keyFontSize, defaultValue: 18.0);
-    final fontFamily = box.get(_keyFontFamily, defaultValue: 'Serif');
+    final fontSize = box.get(_keyFontSize, defaultValue: 14.0);
+    final rawFontFamily = box.get(_keyFontFamily, defaultValue: 'Merriweather');
+    final String fontFamily = rawFontFamily == 'Serif' ? 'Merriweather' : rawFontFamily;
     final lineHeight = box.get(_keyLineHeight, defaultValue: 1.5);
     final isCloudSyncEnabled = box.get(_keyCloudSync, defaultValue: false);
     final colorMode = box.get(_keyColorMode, defaultValue: 'normal');
+    final onboardingSeen = box.get(_keyOnboardingSeen, defaultValue: false);
     final isHorizontal = box.get(_keyIsHorizontal, defaultValue: false);
     final pageTransition = box.get(_keyPageTransition, defaultValue: 'slide');
     final isDarkMode = box.get(_keyIsDarkMode, defaultValue: false);
@@ -175,6 +182,7 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettingsState> {
       fontSize: fontSize,
       fontFamily: fontFamily,
       lineHeight: lineHeight,
+      onboardingSeen: onboardingSeen,
       isCloudSyncEnabled: cloudEnabled,
       isCloudSyncLoading: false,
       cloudAccountEmail: cloudEmail,
@@ -192,6 +200,12 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettingsState> {
       lastReadBookId: lastReadBookId,
       mainDirectory: mainDirectory,
     );
+  }
+
+  Future<void> setOnboardingSeen(bool value) async {
+    state = state.copyWith(onboardingSeen: value);
+    final box = await Hive.openBox(_boxName);
+    await box.put(_keyOnboardingSeen, value);
   }
 
   void _setCloudLoading(bool value) {

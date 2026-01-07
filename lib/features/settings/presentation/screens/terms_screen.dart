@@ -26,11 +26,11 @@ class TermsScreen extends StatelessWidget {
               padding: const EdgeInsets.all(24.0),
               decoration: BoxDecoration(
                 color: isDark
-                    ? cs.surfaceContainerHighest.withOpacity(0.35)
-                    : cs.primary.withOpacity(0.10),
+                    ? cs.surfaceContainerHighest.withAlpha((0.35 * 255).round())
+                    : cs.primary.withAlpha((0.10 * 255).round()),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: cs.primary.withOpacity(isDark ? 0.25 : 0.20),
+                  color: cs.primary.withAlpha(((isDark ? 0.25 : 0.20) * 255).round()),
                 ),
               ),
               child: Column(
@@ -52,14 +52,14 @@ class TermsScreen extends StatelessWidget {
                   Text(
                     'Lumen Reader v1.2.3',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: cs.onSurface.withOpacity(0.78),
+                      color: cs.onSurface.withAlpha((0.78 * 255).round()),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Última atualização: 4 de janeiro de 2025',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: cs.onSurface.withOpacity(0.60),
+                      color: cs.onSurface.withAlpha((0.60 * 255).round()),
                     ),
                   ),
                 ],
@@ -136,7 +136,7 @@ class TermsScreen extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20.0),
               decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest.withOpacity(isDark ? 0.45 : 0.30),
+                color: cs.surfaceContainerHighest.withAlpha(((isDark ? 0.45 : 0.30) * 255).round()),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -183,7 +183,7 @@ class TermsScreen extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 20),
                       foregroundColor: cs.primary,
-                      side: BorderSide(color: cs.primary.withOpacity(0.55)),
+                      side: BorderSide(color: cs.primary.withAlpha((0.55 * 255).round())),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -238,7 +238,7 @@ class TermsScreen extends StatelessWidget {
             content,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               height: 1.6,
-              color: cs.onSurface.withOpacity(0.86),
+              color: cs.onSurface.withAlpha((0.86 * 255).round()),
             ),
           ),
         ],
@@ -272,11 +272,11 @@ class PrivacyPolicyScreen extends StatelessWidget {
               padding: const EdgeInsets.all(24.0),
               decoration: BoxDecoration(
                 color: isDark
-                    ? cs.surfaceContainerHighest.withOpacity(0.35)
-                    : cs.tertiary.withOpacity(0.10),
+                    ? cs.surfaceContainerHighest.withAlpha((0.35 * 255).round())
+                    : cs.tertiary.withAlpha((0.10 * 255).round()),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: cs.tertiary.withOpacity(isDark ? 0.25 : 0.20),
+                  color: cs.tertiary.withAlpha(((isDark ? 0.25 : 0.20) * 255).round()),
                 ),
               ),
               child: Column(
@@ -298,7 +298,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   Text(
                     'Respeitamos sua privacidade',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: cs.onSurface.withOpacity(0.78),
+                          color: cs.onSurface.withAlpha((0.78 * 255).round()),
                         ),
                   ),
                 ],
@@ -350,7 +350,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20.0),
               decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest.withOpacity(isDark ? 0.45 : 0.30),
+                color: cs.surfaceContainerHighest.withAlpha(((isDark ? 0.45 : 0.30) * 255).round()),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -427,7 +427,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             content,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               height: 1.6,
-              color: cs.onSurface.withOpacity(0.86),
+              color: cs.onSurface.withAlpha((0.86 * 255).round()),
             ),
           ),
         ],

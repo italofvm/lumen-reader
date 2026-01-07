@@ -11,6 +11,8 @@ import 'package:lumen_reader/core/services/update/app_update_service.dart';
 import 'package:lumen_reader/features/library/presentation/screens/library_screen.dart';
 import 'package:lumen_reader/features/reader/presentation/screens/pdf_reader_screen.dart';
 import 'package:lumen_reader/features/reader/presentation/screens/epub_reader_screen.dart';
+import 'package:lumen_reader/features/onboarding/presentation/screens/onboarding_screen.dart';
+import 'package:lumen_reader/features/settings/domain/providers/settings_providers.dart';
 import 'package:path/path.dart' as p;
 
 void main() async {
@@ -72,12 +74,46 @@ class _OpenFileCoordinator extends ConsumerStatefulWidget {
 class _OpenFileCoordinatorState extends ConsumerState<_OpenFileCoordinator> {
   bool _initialized = false;
   bool _didCheckUpdates = false;
+  bool _didShowOnboarding = false;
+  ProviderSubscription<bool>? _onboardingSub;
 
   @override
   void initState() {
     super.initState();
     _initOpenFileHandling();
     _initUpdateCheck();
+    _initOnboardingCheck();
+  }
+
+  void _initOnboardingCheck() {
+    _onboardingSub = ref.listenManual(
+      readerSettingsProvider.select((s) => s.onboardingSeen),
+      (previous, next) {
+        if (_didShowOnboarding) return;
+        if (next) return;
+
+        _didShowOnboarding = true;
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final nav = _OpenFileCoordinator.navigatorKey.currentState;
+          if (nav == null) return;
+
+          nav.push(
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (_) => OnboardingScreen(
+                onFinish: () {
+                  ref.read(readerSettingsProvider.notifier).setOnboardingSeen(true);
+                  final n = _OpenFileCoordinator.navigatorKey.currentState;
+                  if (n == null) return;
+                  if (n.canPop()) n.pop();
+                },
+              ),
+            ),
+          );
+        });
+      },
+    );
   }
 
   void _initUpdateCheck() {
@@ -138,6 +174,12 @@ class _OpenFileCoordinatorState extends ConsumerState<_OpenFileCoordinator> {
       );
       return;
     }
+  }
+
+  @override
+  void dispose() {
+    _onboardingSub?.close();
+    super.dispose();
   }
 
   @override

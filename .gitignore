@@ -79,3 +79,6 @@ macos/Flutter/ephemeral/
 
 # Misc
 *.lock
+
+# Project docs (do not version)
+docs/

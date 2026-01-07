@@ -21,66 +21,79 @@ class FilesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: const Text('Meus Arquivos')),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            GridView.count(
-              shrinkWrap: true,
-              crossAxisCount: 2,
-              mainAxisSpacing: 20,
-              crossAxisSpacing: 20,
-              childAspectRatio: 1.5,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final crossAxisCount = width >= 520 ? 4 : 2;
+          // Ajuste fino para evitar cards altos demais em telas pequenas.
+          final aspect = width >= 520 ? 1.05 : 1.35;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
               children: [
-                _FileActionCard(
-                  icon: Icons.file_open,
-                  label: 'Importar Arquivo',
-                  color: const Color(0xFF42A5F5),
-                  onTap: () => _importBook(context, ref),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: aspect,
+                  children: [
+                    _FileActionCard(
+                      icon: Icons.file_open,
+                      label: 'Arquivo',
+                      color: const Color(0xFF42A5F5),
+                      onTap: () => _importBook(context, ref),
+                    ),
+                    _FileActionCard(
+                      icon: Icons.folder,
+                      label: 'Pasta',
+                      color: const Color(0xFFFFA726),
+                      onTap: () => _scanFolder(context, ref),
+                    ),
+                    _FileActionCard(
+                      icon: Icons.cloud,
+                      label: 'Google Drive',
+                      color: const Color(0xFF66BB6A),
+                      onTap: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const GoogleDrivePickerScreen(),
+                          ),
+                        );
+                        if (!context.mounted) return;
+                        if (result != null && result is Map<String, String>) {
+                          await _handleImportedFile(
+                            result['path']!,
+                            result['name']!,
+                            ref,
+                            messenger,
+                          );
+                        }
+                      },
+                    ),
+                    _FileActionCard(
+                      icon: Icons.sd_storage,
+                      label: 'Dispositivo',
+                      color: const Color(0xFFBDBDBD),
+                      onTap: () => _scanDevice(context, ref),
+                    ),
+                  ],
                 ),
-                _FileActionCard(
-                  icon: Icons.folder,
-                  label: 'Escanear Pasta',
-                  color: const Color(0xFFFFA726),
-                  onTap: () => _scanFolder(context, ref),
-                ),
-                _FileActionCard(
-                  icon: Icons.cloud,
-                  label: 'Google Drive',
-                  color: const Color(0xFF66BB6A),
-                  onTap: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const GoogleDrivePickerScreen(),
-                      ),
-                    );
-                    if (result != null && result is Map<String, String>) {
-                      _handleImportedFile(
-                        result['path']!,
-                        result['name']!,
-                        ref,
-                        context, // Pass context just in case but handle carefully
-                      );
-                    }
-                  },
-                ),
-                _FileActionCard(
-                  icon: Icons.sd_storage,
-                  label: 'Escanear Dispositivo',
-                  color: const Color(0xFFBDBDBD),
-                  onTap: () => _scanDevice(context, ref),
+                const SizedBox(height: 20),
+                const Text(
+                  'Selecione uma opção para adicionar livros à sua biblioteca.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Selecione uma opção para adicionar livros à sua biblioteca.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -88,22 +101,24 @@ class FilesScreen extends ConsumerWidget {
   // --- Logic copied from LibraryScreen (simplified/adapted) ---
 
   Future<void> _importBook(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'epub', 'mobi', 'fb2', 'txt', 'azw3'],
       withData: true,
     );
+    if (!context.mounted) return;
     if (result != null) {
       final file = result.files.single;
       if (file.path != null) {
-        await _handleImportedFile(file.path!, file.name, ref, context);
+        await _handleImportedFile(file.path!, file.name, ref, messenger);
         return;
       }
 
       final bytes = file.bytes;
       if (bytes == null) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             const SnackBar(
               content: Text('Não foi possível acessar o arquivo selecionado.'),
             ),
@@ -113,6 +128,7 @@ class FilesScreen extends ConsumerWidget {
       }
 
       final appDir = await getApplicationDocumentsDirectory();
+      if (!context.mounted) return;
       final booksDir = Directory(p.join(appDir.path, 'books'));
       if (!await booksDir.exists()) await booksDir.create(recursive: true);
 
@@ -120,13 +136,17 @@ class FilesScreen extends ConsumerWidget {
       final bookId = '${DateTime.now().millisecondsSinceEpoch}_${file.name.hashCode}';
       final targetPath = p.join(booksDir.path, '$bookId.$extension');
       await File(targetPath).writeAsBytes(bytes, flush: true);
-      await _handleImportedFile(targetPath, file.name, ref, context);
+      if (!context.mounted) return;
+      await _handleImportedFile(targetPath, file.name, ref, messenger);
     }
   }
 
   Future<void> _scanFolder(BuildContext context, WidgetRef ref) async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    if (!context.mounted) return;
     if (selectedDirectory == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
 
     // Permission check usually redundant for getDirectoryPath on some OS but good practice for raw file access
     // On Android 11+ explicit permission might be needed or manage external storage
@@ -153,35 +173,41 @@ class FilesScreen extends ConsumerWidget {
             entity.path,
             fileName,
             ref,
-            context,
+            messenger,
             isBatch: true,
           );
           addedCount++;
         }
+        if (!context.mounted) return;
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(content: Text('$addedCount livros encontrados.')),
           );
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Erro ao escanear pasta: $e')));
+          messenger.showSnackBar(
+            SnackBar(content: Text('Erro ao escanear pasta: $e')),
+          );
         }
       }
     }
   }
 
   Future<void> _scanDevice(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
     var status = await Permission.storage.status;
+    if (!context.mounted) return;
     if (!status.isGranted) {
       status = await Permission.storage.request();
+      if (!context.mounted) return;
     }
 
     var manageStatus = await Permission.manageExternalStorage.status;
+    if (!context.mounted) return;
     if (!manageStatus.isGranted && !status.isGranted) {
       manageStatus = await Permission.manageExternalStorage.request();
+      if (!context.mounted) return;
     }
 
     if (status.isGranted || manageStatus.isGranted) {
@@ -215,7 +241,7 @@ class FilesScreen extends ConsumerWidget {
                 entity.path,
                 fileName,
                 ref,
-                context,
+                messenger,
                 isBatch: true,
               );
               totalAdded++;
@@ -225,8 +251,9 @@ class FilesScreen extends ConsumerWidget {
           }
         }
       }
+      if (!context.mounted) return;
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text(
               'Escanenamento concluído. $totalAdded livros adicionados.',
@@ -235,8 +262,9 @@ class FilesScreen extends ConsumerWidget {
         );
       }
     } else {
+      if (!context.mounted) return;
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: const Text(
               'Permissão de armazenamento negada. Ative nas configurações para escanear o dispositivo.',
@@ -257,7 +285,7 @@ class FilesScreen extends ConsumerWidget {
     String filePath,
     String fileName,
     WidgetRef ref,
-    BuildContext context, {
+    ScaffoldMessengerState messenger, {
     bool isBatch = false,
   }) async {
     final extension = fileName.split('.').last.toLowerCase();
@@ -305,8 +333,8 @@ class FilesScreen extends ConsumerWidget {
 
     await ref.read(libraryProvider.notifier).importBook(book);
 
-    if (!isBatch && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+    if (!isBatch) {
+      messenger.showSnackBar(
         SnackBar(content: Text('Livro "$fileName" importado com sucesso!')),
       );
     }
@@ -338,15 +366,24 @@ class _FileActionCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withAlpha((0.1 * 255).round()),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, size: 32, color: color),
             ),
-            const SizedBox(height: 12),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
         ),
       ),

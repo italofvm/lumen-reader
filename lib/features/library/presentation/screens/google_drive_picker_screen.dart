@@ -279,7 +279,7 @@ class _GoogleDrivePickerScreenState extends State<GoogleDrivePickerScreen> {
                 // Backup/Restore Bar
                 Container(
                   padding: const EdgeInsets.all(16),
-                  color: Theme.of(context).primaryColor.withOpacity(0.05),
+                  color: Theme.of(context).primaryColor.withAlpha((0.05 * 255).round()),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [

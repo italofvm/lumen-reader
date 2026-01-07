@@ -1,7 +1,7 @@
 name: lumen_reader
 description: "Aplicativo de leitura de ebooks com IA Gemini integrada."
 publish_to: 'none'
-version: 1.2.7+8
+version: 1.2.8+9
 
 environment:
   sdk: ^3.10.4
@@ -16,6 +16,7 @@ dependencies:
   path: ^1.9.0
   path_provider: ^2.1.2
   http: ^1.2.2
+  google_fonts: ^6.2.1
   url_launcher: ^6.3.0
   syncfusion_flutter_pdf: ^32.1.21
   syncfusion_flutter_pdfviewer: ^32.1.21

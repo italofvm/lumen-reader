@@ -40,7 +40,7 @@ class DashboardSection extends StatelessWidget {
                       size: 20,
                       color: Theme.of(
                         context,
-                      ).iconTheme.color?.withOpacity(0.5),
+                      ).iconTheme.color?.withAlpha((0.5 * 255).round()),
                     ),
                   ),
                 ),
@@ -51,11 +51,11 @@ class DashboardSection extends StatelessWidget {
           width: double.infinity,
           margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor.withOpacity(0.9),
+            color: Theme.of(context).cardColor.withAlpha((0.9 * 255).round()),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withAlpha((0.03 * 255).round()),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -97,7 +97,7 @@ class QuickActionItem extends StatelessWidget {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: color.withOpacity(0.3),
+                    color: color.withAlpha((0.3 * 255).round()),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -105,12 +105,14 @@ class QuickActionItem extends StatelessWidget {
               ),
               child: Icon(icon, color: Colors.white, size: 28),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               label,
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w500,
                 color: Theme.of(context).textTheme.bodyMedium?.color,
               ),

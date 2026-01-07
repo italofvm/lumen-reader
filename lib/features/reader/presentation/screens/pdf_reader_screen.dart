@@ -372,11 +372,11 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
               }
             },
             onTextSelectionChanged: (PdfTextSelectionChangedDetails details) {
-              if (details.selectedText != null) {
-                setState(() {
-                  _selectedText = details.selectedText!;
-                });
-              }
+              final next = details.selectedText?.trim() ?? '';
+              if (next == _selectedText) return;
+              setState(() {
+                _selectedText = next;
+              });
             },
           )
         : SfPdfViewer.file(
@@ -398,11 +398,11 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
               }
             },
             onTextSelectionChanged: (PdfTextSelectionChangedDetails details) {
-              if (details.selectedText != null) {
-                setState(() {
-                  _selectedText = details.selectedText!;
-                });
-              }
+              final next = details.selectedText?.trim() ?? '';
+              if (next == _selectedText) return;
+              setState(() {
+                _selectedText = next;
+              });
             },
           );
 

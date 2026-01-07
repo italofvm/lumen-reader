@@ -2,6 +2,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 class GoogleDriveService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
@@ -21,7 +22,7 @@ class GoogleDriveService {
       _currentUser = await _googleSignIn.signInSilently();
       return _currentUser;
     } catch (error) {
-      print('Silent sign in error: $error');
+      debugPrint('Silent sign in error: $error');
       return null;
     }
   }
@@ -31,7 +32,7 @@ class GoogleDriveService {
       _currentUser = await _googleSignIn.signIn();
       return _currentUser;
     } catch (error) {
-      print('Sign in error: $error');
+      debugPrint('Sign in error: $error');
       return null;
     }
   }
@@ -65,7 +66,7 @@ class GoogleDriveService {
       );
       return fileList.files ?? [];
     } catch (e) {
-      print('Error listing files: $e');
+      debugPrint('Error listing files: $e');
       return [];
     }
   }
@@ -101,7 +102,7 @@ class GoogleDriveService {
         return await driveApi.files.create(driveFile, uploadMedia: media);
       }
     } catch (e) {
-      print('Error uploading file: $e');
+      debugPrint('Error uploading file: $e');
       return null;
     }
   }
@@ -124,7 +125,7 @@ class GoogleDriveService {
       await ios.close();
       return file;
     } catch (e) {
-      print('Error downloading file: $e');
+      debugPrint('Error downloading file: $e');
       return null;
     }
   }
@@ -142,7 +143,7 @@ class GoogleDriveService {
         return result.files!.first;
       }
     } catch (e) {
-      print('Error getting file by name: $e');
+      debugPrint('Error getting file by name: $e');
     }
     return null;
   }

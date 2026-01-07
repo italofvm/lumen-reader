@@ -31,7 +31,7 @@ class HomeScreen extends ConsumerWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFFFC107).withOpacity(0.4),
+                        color: const Color(0xFFFFC107).withAlpha((0.4 * 255).round()),
                         blurRadius: 30,
                         spreadRadius: 8,
                       ),
@@ -168,10 +168,10 @@ class _MenuTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF2A2A3E),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+            border: Border.all(color: Colors.white.withAlpha((0.1 * 255).round()), width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withAlpha((0.2 * 255).round()),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -183,7 +183,7 @@ class _MenuTile extends StatelessWidget {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF5C6BC0).withOpacity(0.2),
+                  color: const Color(0xFF5C6BC0).withAlpha((0.2 * 255).round()),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(icon, color: const Color(0xFF5C6BC0), size: 28),
