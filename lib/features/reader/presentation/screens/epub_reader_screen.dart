@@ -8,6 +8,7 @@ import '../widgets/reader_settings_sheet.dart';
 import 'package:lumen_reader/features/reader/services/providers.dart';
 import 'package:lumen_reader/features/reader/presentation/widgets/bookmarks_sheet.dart';
 import 'package:lumen_reader/features/reader/presentation/widgets/reader_search_sheet.dart';
+import 'package:lumen_reader/features/reader/presentation/widgets/ask_book_dialog.dart';
 
 import 'package:flutter/services.dart';
 
@@ -54,6 +55,8 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
   double? _lastFontSize;
   double? _lastZoom;
 
+  ProviderSubscription<(double, double)>? _settingsSub;
+
   Offset? _lastPointerDown;
   int? _lastPointerDownMs;
 
@@ -62,7 +65,7 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
     super.initState();
     _epubBookFuture = _loadEpub();
 
-    ref.listen(
+    _settingsSub = ref.listenManual(
       readerSettingsProvider.select((s) => (s.fontSize, s.zoom)),
       (previous, next) {
         final (fontSize, zoom) = next;
@@ -76,6 +79,12 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
         }
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _settingsSub?.close();
+    super.dispose();
   }
 
   Future<List<ReaderSearchHit>> _searchInEpub(String query) async {
@@ -185,13 +194,106 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
     if (cached != null) return cached;
 
     final sanitized = _getSanitizedChapterHtml(chapterIndex, html);
-    final text = sanitized
-        .replaceAll(RegExp(r'<[^>]*>'), ' ')
-        .replaceAll(RegExp(r'&nbsp;'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
+
+    // First, add newlines for common block-level tags so paragraphs don't collapse.
+    final withBreaks = sanitized
+        .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<\s*/\s*p\s*>', caseSensitive: false), '\n\n')
+        .replaceAll(RegExp(r'<\s*p\b[^>]*>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<\s*/\s*div\s*>', caseSensitive: false), '\n\n')
+        .replaceAll(RegExp(r'<\s*div\b[^>]*>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<\s*/\s*li\s*>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<\s*li\b[^>]*>', caseSensitive: false), '• ')
+        .replaceAll(
+          RegExp(r'<\s*/\s*(h1|h2|h3|h4|h5|h6)\s*>', caseSensitive: false),
+          '\n\n',
+        )
+        .replaceAll(
+          RegExp(r'<\s*(h1|h2|h3|h4|h5|h6)\b[^>]*>', caseSensitive: false),
+          '\n',
+        );
+
+    // Some EPUBs embed HTML as escaped entities (&lt;p&gt;...&lt;/p&gt;).
+    // Decode basic entities first, then strip tags again.
+    String decoded = withBreaks
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'");
+
+    // Decode numeric entities like &#160; (non-breaking space)
+    decoded = decoded.replaceAllMapped(RegExp(r'&#(\d+);'), (m) {
+      final code = int.tryParse(m.group(1) ?? '');
+      if (code == null) return '';
+      return String.fromCharCode(code);
+    });
+
+    // Decode hex entities like &#xA0;
+    decoded = decoded.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (m) {
+      final code = int.tryParse(m.group(1) ?? '', radix: 16);
+      if (code == null) return '';
+      return String.fromCharCode(code);
+    });
+
+    // Remove soft hyphen which breaks words visually in text mode.
+    decoded = decoded.replaceAll('\u00ad', '');
+
+    final text = decoded
+        .replaceAll(RegExp(r'<script[^>]*>[\s\S]*?<\/script>', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'<style[^>]*>[\s\S]*?<\/style>', caseSensitive: false), ' ')
+        // Removing inline tags should NOT introduce spaces (some EPUBs wrap each letter in <span>).
+        // Block-level spacing is handled earlier in `withBreaks`.
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        // Normalize whitespace but preserve paragraph breaks.
+        .replaceAll(RegExp(r'[ \t\f\v]+'), ' ')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .replaceAll(RegExp(r' *\n *'), '\n')
         .trim();
     _chapterPlainText[chapterIndex] = text;
     return text;
+  }
+
+  String _sliceByWordBoundary(String text, int startRaw, int pageSize) {
+    if (text.isEmpty) return '';
+    final maxLen = text.length;
+    int start = startRaw.clamp(0, maxLen);
+    int end = (start + pageSize).clamp(0, maxLen);
+
+    bool isWs(int codeUnit) =>
+        codeUnit == 0x20 || codeUnit == 0x0A || codeUnit == 0x0D || codeUnit == 0x09;
+
+    // Avoid starting in the middle of a word.
+    if (start > 0 && start < maxLen && !isWs(text.codeUnitAt(start))) {
+      final backLimit = (start - 40).clamp(0, start);
+      for (int i = start; i > backLimit; i--) {
+        if (isWs(text.codeUnitAt(i - 1))) {
+          start = i;
+          break;
+        }
+      }
+    }
+
+    // Avoid ending in the middle of a word.
+    if (end > 0 && end < maxLen && !isWs(text.codeUnitAt(end - 1))) {
+      final forwardLimit = (end + 40).clamp(end, maxLen);
+      for (int i = end; i < forwardLimit; i++) {
+        if (isWs(text.codeUnitAt(i))) {
+          end = i;
+          break;
+        }
+      }
+    }
+
+    if (start >= end) return '';
+
+    var out = text.substring(start, end).trim();
+    // Avoid huge top blank areas caused by paragraph breaks at the start of the slice.
+    out = out.replaceFirst(RegExp(r'^\n+'), '');
+    // Compact excessive blank lines inside the slice.
+    out = out.replaceAll(RegExp(r'\n{3,}'), '\n\n');
+    return out.trim();
   }
 
   Future<EpubBook> _loadEpub() async {
@@ -347,6 +449,55 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
     );
   }
 
+  String _getAskContext() {
+    if (_loadedBook == null) return '';
+    if (_virtualPages.isEmpty) return '';
+    if (_currentPageIndex < 0 || _currentPageIndex >= _virtualPages.length) {
+      return '';
+    }
+
+    final settings = ref.read(readerSettingsProvider);
+    final page = _virtualPages[_currentPageIndex];
+    final chapters = _loadedBook!.Chapters ?? const <EpubChapter>[];
+    if (page.chapterIndex < 0 || page.chapterIndex >= chapters.length) return '';
+
+    final chapter = chapters[page.chapterIndex];
+    final plainText = _getChapterPlainText(
+      page.chapterIndex,
+      chapter.HtmlContent ?? '',
+    );
+    if (plainText.trim().isEmpty) return '';
+
+    double charsPerPage = 1200 / (settings.fontSize / 16.0) / settings.zoom;
+    if (charsPerPage < 200) charsPerPage = 200;
+    final pageSize = charsPerPage.floor();
+    final startRaw = page.pageIndexInSection * pageSize;
+    final slice = _sliceByWordBoundary(plainText, startRaw, pageSize);
+    return slice.isNotEmpty ? slice : plainText;
+  }
+
+  void _askBook(BuildContext context) {
+    final ctxText = _getAskContext();
+    if (ctxText.trim().isEmpty) return;
+
+    String sourceLabel = 'EPUB';
+    if (_virtualPages.isNotEmpty &&
+        _currentPageIndex >= 0 &&
+        _currentPageIndex < _virtualPages.length) {
+      final p = _virtualPages[_currentPageIndex];
+      sourceLabel = 'Capítulo ${p.chapterIndex + 1}, página ${p.pageIndexInSection + 1}';
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AskBookDialog(
+        title: widget.title,
+        contextText: ctxText,
+        sourceLabel: sourceLabel,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -369,6 +520,11 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
                   icon: const Icon(Icons.search),
                   onPressed: () => _openSearch(context),
                   tooltip: 'Buscar no livro',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.question_answer),
+                  onPressed: () => _askBook(context),
+                  tooltip: 'Pergunte ao livro',
                 ),
                 IconButton(
                   icon: const Icon(Icons.bookmark_border),
@@ -583,22 +739,36 @@ class _EpubReaderScreenState extends ConsumerState<EpubReaderScreen> {
     if (charsPerPage < 200) charsPerPage = 200;
 
     final pageSize = charsPerPage.floor();
-    final start = (page.pageIndexInSection * pageSize).clamp(0, plainText.length);
-    final end = (start + pageSize).clamp(0, plainText.length);
-    final slice = start < end ? plainText.substring(start, end).trim() : '';
+    final startRaw = page.pageIndexInSection * pageSize;
+    final slice = _sliceByWordBoundary(plainText, startRaw, pageSize);
+
+    final contentPadding = EdgeInsets.fromLTRB(
+      18,
+      _isUiVisible ? 16 : 28,
+      18,
+      24,
+    );
 
     return Container(
       color: _getBackgroundColor(settings.colorMode),
-      padding: const EdgeInsets.all(16.0),
       alignment: Alignment.topLeft,
-      child: SelectionArea(
-        child: Text(
-          slice.isNotEmpty ? slice : plainText,
-          style: TextStyle(
-            fontSize: settings.fontSize * settings.zoom,
-            height: settings.lineHeight,
-            color: _getTextColor(settings.colorMode),
-            fontFamily: settings.fontFamily,
+      child: SafeArea(
+        top: !_isUiVisible,
+        bottom: true,
+        left: false,
+        right: false,
+        child: Padding(
+          padding: contentPadding,
+          child: SelectionArea(
+            child: Text(
+              slice.isNotEmpty ? slice : plainText,
+              style: TextStyle(
+                fontSize: settings.fontSize * settings.zoom,
+                height: settings.lineHeight,
+                color: _getTextColor(settings.colorMode),
+                fontFamily: settings.fontFamily,
+              ),
+            ),
           ),
         ),
       ),

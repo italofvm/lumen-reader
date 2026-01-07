@@ -28,20 +28,21 @@ class GitHubUpdateService {
   Uri _latestReleaseUri() =>
       Uri.parse('https://api.github.com/repos/$owner/$repo/releases/latest');
 
-  Future<GitHubReleaseInfo?> fetchLatestRelease() async {
-    final res = await _client.get(
-      _latestReleaseUri(),
-      headers: const {
+  Uri _releasesUri({int perPage = 20}) => Uri.parse(
+        'https://api.github.com/repos/$owner/$repo/releases?per_page=$perPage',
+      );
+
+  Uri _tagsUri({int perPage = 20}) => Uri.parse(
+        'https://api.github.com/repos/$owner/$repo/tags?per_page=$perPage',
+      );
+
+  Map<String, String> get _headers => const {
         'Accept': 'application/vnd.github+json',
-      },
-    );
+        // Some GitHub setups behave better with a User-Agent.
+        'User-Agent': 'lumen-reader',
+      };
 
-    if (res.statusCode == 404) return null;
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('GitHub API erro: HTTP ${res.statusCode}');
-    }
-
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
+  GitHubReleaseInfo? _parseRelease(Map<String, dynamic> data) {
     final tagName = (data['tag_name'] as String?)?.trim() ?? '';
     final htmlUrl = (data['html_url'] as String?)?.trim() ?? '';
 
@@ -64,6 +65,93 @@ class GitHubUpdateService {
       tagName: tagName,
       htmlUrl: htmlUrl,
       apkDownloadUrl: apkUrl,
+    );
+  }
+
+  Future<GitHubReleaseInfo?> fetchLatestRelease({bool includePreRelease = true}) async {
+    final res = await _client.get(
+      _latestReleaseUri(),
+      headers: _headers,
+    );
+
+    // GitHub returns 404 if there is no *published* release (common when only tags exist,
+    // or when latest is a draft, or when only prereleases exist).
+    if (res.statusCode == 404) {
+      return fetchMostRecentRelease(includePreRelease: includePreRelease);
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception('GitHub API erro: HTTP ${res.statusCode}');
+    }
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return _parseRelease(data);
+  }
+
+  Future<GitHubReleaseInfo?> fetchMostRecentRelease({
+    bool includePreRelease = true,
+  }) async {
+    final res = await _client.get(
+      _releasesUri(),
+      headers: _headers,
+    );
+
+    if (res.statusCode == 404) {
+      // Repository not found or private. (GitHub uses 404 for private repos when unauthenticated.)
+      throw Exception(
+        'Repositório não encontrado ou privado. Para verificar atualizações sem login, o repositório de releases precisa ser público.',
+      );
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception('GitHub API erro: HTTP ${res.statusCode}');
+    }
+
+    final data = jsonDecode(res.body);
+    if (data is! List) return null;
+
+    for (final item in data) {
+      if (item is! Map<String, dynamic>) continue;
+      final isDraft = item['draft'] == true;
+      final isPre = item['prerelease'] == true;
+      if (isDraft) continue;
+      if (!includePreRelease && isPre) continue;
+
+      final parsed = _parseRelease(item);
+      if (parsed != null) return parsed;
+    }
+
+    // No releases matched; fallback to tags.
+    return fetchMostRecentTag();
+  }
+
+  Future<GitHubReleaseInfo?> fetchMostRecentTag() async {
+    final res = await _client.get(
+      _tagsUri(),
+      headers: _headers,
+    );
+
+    if (res.statusCode == 404) {
+      throw Exception(
+        'Repositório não encontrado ou privado. Para verificar atualizações sem login, o repositório de releases precisa ser público.',
+      );
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception('GitHub API erro: HTTP ${res.statusCode}');
+    }
+
+    final data = jsonDecode(res.body);
+    if (data is! List || data.isEmpty) return null;
+
+    final first = data.first;
+    if (first is! Map<String, dynamic>) return null;
+    final tagName = (first['name'] as String?)?.trim() ?? '';
+    if (tagName.isEmpty) return null;
+
+    // Tags don't have a release page. Use the generic tag URL.
+    final htmlUrl = 'https://github.com/$owner/$repo/releases/tag/$tagName';
+    return GitHubReleaseInfo(
+      tagName: tagName,
+      htmlUrl: htmlUrl,
+      apkDownloadUrl: null,
     );
   }
 

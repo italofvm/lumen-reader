@@ -41,6 +41,8 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
 
   double? _lastAppliedZoom;
 
+  ProviderSubscription<double>? _zoomSub;
+
   Offset? _lastPointerDown;
   int? _lastPointerDownMs;
 
@@ -233,7 +235,7 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
   @override
   void initState() {
     super.initState();
-    ref.listen(
+    _zoomSub = ref.listenManual(
       readerSettingsProvider.select((s) => s.zoom),
       (previous, next) {
         if (_lastAppliedZoom == next) return;
@@ -247,6 +249,7 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
 
   @override
   void dispose() {
+    _zoomSub?.close();
     try {
       _searchDocument?.dispose();
     } catch (_) {}

@@ -7,6 +7,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:lumen_reader/core/theme/app_theme.dart';
 import 'package:lumen_reader/core/theme/theme_provider.dart';
+import 'package:lumen_reader/core/services/update/app_update_service.dart';
 import 'package:lumen_reader/features/library/presentation/screens/library_screen.dart';
 import 'package:lumen_reader/features/reader/presentation/screens/pdf_reader_screen.dart';
 import 'package:lumen_reader/features/reader/presentation/screens/epub_reader_screen.dart';
@@ -70,11 +71,24 @@ class _OpenFileCoordinator extends ConsumerStatefulWidget {
 
 class _OpenFileCoordinatorState extends ConsumerState<_OpenFileCoordinator> {
   bool _initialized = false;
+  bool _didCheckUpdates = false;
 
   @override
   void initState() {
     super.initState();
     _initOpenFileHandling();
+    _initUpdateCheck();
+  }
+
+  void _initUpdateCheck() {
+    if (_didCheckUpdates) return;
+    _didCheckUpdates = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _OpenFileCoordinator.navigatorKey.currentContext;
+      if (ctx == null) return;
+      AppUpdateService().checkAndPrompt(ctx);
+    });
   }
 
   Future<void> _initOpenFileHandling() async {

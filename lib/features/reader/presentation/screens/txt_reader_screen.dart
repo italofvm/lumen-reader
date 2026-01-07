@@ -9,6 +9,7 @@ import 'package:lumen_reader/features/library/presentation/providers/library_pro
 import 'package:lumen_reader/features/settings/domain/providers/settings_providers.dart';
 import 'package:lumen_reader/features/reader/services/providers.dart';
 import 'package:lumen_reader/features/reader/presentation/widgets/bookmarks_sheet.dart';
+import 'package:lumen_reader/features/reader/presentation/widgets/ask_book_dialog.dart';
 
 import '../widgets/reader_settings_sheet.dart';
 
@@ -63,6 +64,42 @@ class _TxtReaderScreenState extends ConsumerState<TxtReaderScreen> {
     setState(() {
       _isUiVisible = !_isUiVisible;
     });
+  }
+
+  String _getAskContext() {
+    final text = _content ?? '';
+    if (text.trim().isEmpty) return '';
+
+    final offset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+    final max = _scrollController.hasClients
+        ? _scrollController.position.maxScrollExtent
+        : 0.0;
+
+    final ratio = max <= 0 ? 0.0 : (offset / max).clamp(0.0, 1.0);
+    final center = (ratio * text.length).floor().clamp(0, text.length);
+
+    const window = 2200;
+    final start = (center - (window ~/ 2)).clamp(0, text.length);
+    final end = (start + window).clamp(0, text.length);
+    final slice = text.substring(start, end).trim();
+    return slice;
+  }
+
+  void _askBook(BuildContext context) {
+    final ctxText = _getAskContext();
+    if (ctxText.trim().isEmpty) return;
+
+    final offset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+    final sourceLabel = 'TXT — posição ${offset.toStringAsFixed(0)}';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AskBookDialog(
+        title: widget.title,
+        contextText: ctxText,
+        sourceLabel: sourceLabel,
+      ),
+    );
   }
 
   @override
@@ -239,6 +276,10 @@ class _TxtReaderScreenState extends ConsumerState<TxtReaderScreen> {
                   icon: const Icon(Icons.bookmark_border),
                   onPressed: () => _toggleBookmark(context),
                   onLongPress: () => _openBookmarks(context),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.question_answer),
+                  onPressed: () => _askBook(context),
                 ),
               ],
             )

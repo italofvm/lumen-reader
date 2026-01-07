@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:lumen_reader/core/theme/theme_provider.dart';
 import 'package:lumen_reader/core/theme/app_theme.dart';
-import 'package:lumen_reader/core/config/app_config.dart';
-import 'package:lumen_reader/core/services/update/github_update_service.dart';
+import 'package:lumen_reader/core/services/update/app_update_service.dart';
 import 'package:lumen_reader/features/settings/domain/providers/settings_providers.dart';
 import 'package:lumen_reader/features/library/presentation/providers/library_providers.dart';
 import 'package:lumen_reader/features/settings/presentation/screens/terms_screen.dart';
@@ -20,67 +18,10 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-
-      final service = GitHubUpdateService(
-        owner: AppConfig.githubOwner,
-        repo: AppConfig.githubRepo,
-      );
-      final latest = await service.fetchLatestRelease();
-
-      if (latest == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Nenhuma release encontrada no GitHub.')),
-          );
-        }
-        return;
-      }
-
-      final hasUpdate = service.isNewer(
-        currentVersion: info.version,
-        latestTag: latest.tagName,
-      );
-
-      final url = latest.apkDownloadUrl ?? latest.htmlUrl;
-
-      if (!context.mounted) return;
-
-      await showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(hasUpdate ? 'Atualização disponível' : 'Você está atualizado'),
-          content: Text(
-            hasUpdate
-                ? 'Nova versão: ${latest.tagName}\nSua versão: ${info.version}'
-                : 'Sua versão: ${info.version}\nÚltima release: ${latest.tagName}',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Fechar'),
-            ),
-            if (hasUpdate)
-              TextButton(
-                onPressed: () async {
-                  final uri = Uri.parse(url);
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
-                },
-                child: Text(latest.apkDownloadUrl != null ? 'Baixar APK' : 'Abrir Release'),
-              ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao verificar atualização: $e')),
-        );
-      }
-    }
+    await AppUpdateService().checkAndPrompt(
+      context,
+      showUpToDateDialog: true,
+    );
   }
 
   @override
