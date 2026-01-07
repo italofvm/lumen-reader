@@ -43,6 +43,50 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', ts: new Date().toISOString() });
 });
 
+async function listAvailableModels() {
+  if (!GEMINI_API_KEY.trim()) return [];
+  const url = new URL('https://generativelanguage.googleapis.com/v1beta/models');
+  url.searchParams.set('key', GEMINI_API_KEY);
+
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  const bodyText = await resp.text();
+  if (!resp.ok) {
+    throw new Error(`ListModels falhou (HTTP ${resp.status}): ${bodyText}`);
+  }
+
+  const data = JSON.parse(bodyText);
+  const models = Array.isArray(data?.models) ? data.models : [];
+  return models.map((m) => ({
+    name: m?.name,
+    displayName: m?.displayName,
+    supportedGenerationMethods: m?.supportedGenerationMethods,
+  }));
+}
+
+app.get('/v1/ai/models', async (req, res) => {
+  try {
+    if (!GEMINI_API_KEY.trim()) {
+      return res.status(500).json({
+        error: 'GEMINI_API_KEY não configurada no servidor.',
+      });
+    }
+
+    const models = await listAvailableModels();
+    res.json({ models });
+  } catch (e) {
+    const message =
+      e && typeof e === 'object' && 'message' in e ? String(e.message) : String(e);
+    console.error('ListModels error:', { message });
+    res.status(500).json({ error: 'Erro ao listar modelos.', cause: message });
+  }
+});
+
 const askSchema = z.object({
   question: z.string().min(1).max(2000),
   contextText: z.string().min(1).max(20000),
@@ -117,6 +161,23 @@ app.post('/v1/ai/ask', async (req, res) => {
           const isModel404 = msg.includes('404') && msg.includes('models/');
           if (!isModel404) {
             throw err;
+          }
+
+          // Melhor diagnóstico: tenta listar modelos disponíveis para esta key.
+          try {
+            const models = await listAvailableModels();
+            console.error('Model not found. Available models (sample):',
+              models.slice(0, 10).map((m) => ({
+                name: m.name,
+                supportedGenerationMethods: m.supportedGenerationMethods,
+              })),
+            );
+          } catch (listErr) {
+            const listMsg =
+              listErr && typeof listErr === 'object' && 'message' in listErr
+                ? String(listErr.message)
+                : String(listErr);
+            console.error('Failed to list models after 404:', { listMsg });
           }
         }
       }
