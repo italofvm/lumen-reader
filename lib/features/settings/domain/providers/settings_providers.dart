@@ -27,6 +27,12 @@ class ReaderSettingsState {
   final LibraryViewMode viewMode;
   final String? lastReadBookId;
   final String? mainDirectory;
+  final String? mainDirectoryUri;
+  final bool autoImportEnabled;
+
+  final bool dailyReminderEnabled;
+  final int dailyReminderHour;
+  final int dailyReminderMinute;
 
   const ReaderSettingsState({
     required this.fontSize,
@@ -48,6 +54,11 @@ class ReaderSettingsState {
     this.viewMode = LibraryViewMode.grid,
     this.lastReadBookId,
     this.mainDirectory,
+    this.mainDirectoryUri,
+    this.autoImportEnabled = false,
+    this.dailyReminderEnabled = false,
+    this.dailyReminderHour = 20,
+    this.dailyReminderMinute = 0,
   });
 
   ReaderSettingsState copyWith({
@@ -70,6 +81,11 @@ class ReaderSettingsState {
     LibraryViewMode? viewMode,
     String? lastReadBookId,
     String? mainDirectory,
+    String? mainDirectoryUri,
+    bool? autoImportEnabled,
+    bool? dailyReminderEnabled,
+    int? dailyReminderHour,
+    int? dailyReminderMinute,
   }) {
     return ReaderSettingsState(
       fontSize: fontSize ?? this.fontSize,
@@ -91,6 +107,11 @@ class ReaderSettingsState {
       viewMode: viewMode ?? this.viewMode,
       lastReadBookId: lastReadBookId ?? this.lastReadBookId,
       mainDirectory: mainDirectory ?? this.mainDirectory,
+      mainDirectoryUri: mainDirectoryUri ?? this.mainDirectoryUri,
+      autoImportEnabled: autoImportEnabled ?? this.autoImportEnabled,
+      dailyReminderEnabled: dailyReminderEnabled ?? this.dailyReminderEnabled,
+      dailyReminderHour: dailyReminderHour ?? this.dailyReminderHour,
+      dailyReminderMinute: dailyReminderMinute ?? this.dailyReminderMinute,
     );
   }
 }
@@ -112,6 +133,11 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettingsState> {
   static const String _keyViewMode = 'view_mode';
   static const String _keyLastReadBookId = 'last_read_book_id';
   static const String _keyMainDirectory = 'main_directory';
+  static const String _keyMainDirectoryUri = 'main_directory_uri';
+  static const String _keyAutoImportEnabled = 'auto_import_enabled';
+  static const String _keyDailyReminderEnabled = 'daily_reminder_enabled';
+  static const String _keyDailyReminderHour = 'daily_reminder_hour';
+  static const String _keyDailyReminderMinute = 'daily_reminder_minute';
 
   final Ref _ref;
   final GoogleDriveService _driveService = GoogleDriveService();
@@ -136,6 +162,9 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettingsState> {
           showHiddenFiles: false,
           viewMode: LibraryViewMode.grid,
           lastReadBookId: null,
+          dailyReminderEnabled: false,
+          dailyReminderHour: 20,
+          dailyReminderMinute: 0,
         ),
       ) {
     _loadSettings();
@@ -166,6 +195,15 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettingsState> {
     final showHiddenFiles = box.get(_keyShowHiddenFiles, defaultValue: false);
     final lastReadBookId = box.get(_keyLastReadBookId);
     final mainDirectory = box.get(_keyMainDirectory);
+    final mainDirectoryUri = box.get(_keyMainDirectoryUri);
+    final autoImportEnabled =
+        box.get(_keyAutoImportEnabled, defaultValue: false) as bool;
+    final dailyReminderEnabled =
+        box.get(_keyDailyReminderEnabled, defaultValue: false) as bool;
+    final dailyReminderHour =
+        (box.get(_keyDailyReminderHour, defaultValue: 20) as int).clamp(0, 23);
+    final dailyReminderMinute =
+        (box.get(_keyDailyReminderMinute, defaultValue: 0) as int).clamp(0, 59);
 
     String? cloudEmail;
     var cloudEnabled = isCloudSyncEnabled as bool;
@@ -199,7 +237,27 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettingsState> {
       ),
       lastReadBookId: lastReadBookId,
       mainDirectory: mainDirectory,
+      mainDirectoryUri: mainDirectoryUri,
+      autoImportEnabled: autoImportEnabled,
+      dailyReminderEnabled: dailyReminderEnabled,
+      dailyReminderHour: dailyReminderHour,
+      dailyReminderMinute: dailyReminderMinute,
     );
+  }
+
+  Future<void> setDailyReminderEnabled(bool enabled) async {
+    state = state.copyWith(dailyReminderEnabled: enabled);
+    final box = await Hive.openBox(_boxName);
+    await box.put(_keyDailyReminderEnabled, enabled);
+  }
+
+  Future<void> setDailyReminderTime({required int hour, required int minute}) async {
+    final h = hour.clamp(0, 23);
+    final m = minute.clamp(0, 59);
+    state = state.copyWith(dailyReminderHour: h, dailyReminderMinute: m);
+    final box = await Hive.openBox(_boxName);
+    await box.put(_keyDailyReminderHour, h);
+    await box.put(_keyDailyReminderMinute, m);
   }
 
   Future<void> setOnboardingSeen(bool value) async {
@@ -222,6 +280,24 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettingsState> {
 
     await box.put(_keyMainDirectory, path);
     state = state.copyWith(mainDirectory: path);
+  }
+
+  Future<void> updateMainDirectoryUri(String? uri) async {
+    final box = await Hive.openBox(_boxName);
+    if (uri == null || uri.trim().isEmpty) {
+      await box.delete(_keyMainDirectoryUri);
+      state = state.copyWith(mainDirectoryUri: null);
+      return;
+    }
+
+    await box.put(_keyMainDirectoryUri, uri);
+    state = state.copyWith(mainDirectoryUri: uri);
+  }
+
+  Future<void> setAutoImportEnabled(bool enabled) async {
+    final box = await Hive.openBox(_boxName);
+    await box.put(_keyAutoImportEnabled, enabled);
+    state = state.copyWith(autoImportEnabled: enabled);
   }
 
   Future<void> setFontSize(double size) async {

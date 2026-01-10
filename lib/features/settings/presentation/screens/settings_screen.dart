@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'dart:io';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:lumen_reader/core/theme/theme_provider.dart';
 import 'package:lumen_reader/core/theme/app_theme.dart';
 import 'package:lumen_reader/core/services/update/app_update_service.dart';
+import 'package:lumen_reader/core/services/import/auto_import_service.dart';
 import 'package:lumen_reader/features/settings/domain/providers/settings_providers.dart';
 import 'package:lumen_reader/features/library/presentation/providers/library_providers.dart';
 import 'package:lumen_reader/features/settings/presentation/screens/terms_screen.dart';
@@ -12,6 +16,8 @@ import 'package:lumen_reader/features/onboarding/presentation/screens/onboarding
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
+
+  static const MethodChannel _safChannel = MethodChannel('lumen_reader/saf');
 
   Future<String> _getVersionLabel() async {
     final info = await PackageInfo.fromPlatform();
@@ -51,24 +57,92 @@ class SettingsScreen extends ConsumerWidget {
           ),
           ListTile(
             title: const Text('Pasta principal'),
-            subtitle: Text(readerSettings.mainDirectory ?? 'Não configurada'),
+            subtitle: Text(
+              (Platform.isAndroid
+                      ? (readerSettings.mainDirectoryUri ?? readerSettings.mainDirectory)
+                      : readerSettings.mainDirectory) ??
+                  'Não configurada',
+            ),
             trailing: const Icon(Icons.folder_open),
-            onTap: () async {
-              final selected = await FilePicker.platform.getDirectoryPath();
-              if (selected == null) return;
+            onTap: readerSettings.autoImportEnabled
+                ? null
+                : () async {
+                    final selected = await FilePicker.platform.getDirectoryPath();
+                    if (selected == null) return;
 
-              await ref
-                  .read(readerSettingsProvider.notifier)
-                  .updateMainDirectory(selected);
+                    await ref
+                        .read(readerSettingsProvider.notifier)
+                        .updateMainDirectory(selected);
 
-              if (context.mounted) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Pasta principal atualizada com sucesso!'),
+                        ),
+                      );
+                    }
+                  },
+          ),
+          SwitchListTile(
+            title: const Text('Importar automaticamente'),
+            subtitle: const Text('Importa livros automaticamente da pasta principal'),
+            value: readerSettings.autoImportEnabled,
+            onChanged: (v) async {
+              await ref.read(readerSettingsProvider.notifier).setAutoImportEnabled(v);
+
+              if (!context.mounted) return;
+
+              if (v) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Pasta principal atualizada com sucesso!'),
+                    content: Text('Selecione a pasta para importar automaticamente.'),
                   ),
                 );
               }
             },
+          ),
+          ListTile(
+            title: const Text('Selecionar pasta para auto-import'),
+            subtitle: Text(
+              (Platform.isAndroid
+                      ? (readerSettings.mainDirectoryUri ?? 'Não configurada')
+                      : (readerSettings.mainDirectory ?? 'Não configurada')),
+            ),
+            trailing: const Icon(Icons.folder_open),
+            enabled: readerSettings.autoImportEnabled,
+            onTap: !readerSettings.autoImportEnabled
+                ? null
+                : () async {
+                    if (kIsWeb) return;
+
+                    if (Platform.isAndroid) {
+                      try {
+                        final uri = await _safChannel.invokeMethod<String>('pickDirectoryUri');
+                        if (uri == null || uri.trim().isEmpty) return;
+                        await ref
+                            .read(readerSettingsProvider.notifier)
+                            .updateMainDirectoryUri(uri);
+                      } on PlatformException {
+                        return;
+                      }
+                    } else {
+                      final selected = await FilePicker.platform.getDirectoryPath();
+                      if (selected == null) return;
+                      await ref
+                          .read(readerSettingsProvider.notifier)
+                          .updateMainDirectory(selected);
+                    }
+
+                    await AutoImportService(ref).runIfEnabled();
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Importação automática executada.'),
+                        ),
+                      );
+                    }
+                  },
           ),
           const Divider(),
 

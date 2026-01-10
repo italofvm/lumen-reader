@@ -8,6 +8,8 @@ class AIProxyServiceImpl implements AIService {
   final String baseUrl;
   final http.Client _client;
 
+  static const Duration _timeout = Duration(seconds: 25);
+
   AIProxyServiceImpl({
     required this.baseUrl,
     http.Client? client,
@@ -33,17 +35,26 @@ class AIProxyServiceImpl implements AIService {
     final safeContext = _clip(contextText, 20000);
     final safeSource = _clip(sourceLabel, 200);
 
-    final res = await _client.post(
-      _askUri(),
-      headers: const {
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'question': safeQuestion,
-        'contextText': safeContext,
-        'sourceLabel': safeSource,
-      }),
-    );
+    http.Response res;
+    try {
+      res = await _client
+          .post(
+            _askUri(),
+            headers: const {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'question': safeQuestion,
+              'contextText': safeContext,
+              'sourceLabel': safeSource,
+            }),
+          )
+          .timeout(_timeout);
+    } catch (_) {
+      throw Exception(
+        'Não foi possível conectar à IA agora. Verifique sua internet e tente novamente.',
+      );
+    }
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
       try {
@@ -56,11 +67,11 @@ class AIProxyServiceImpl implements AIService {
             if (cause is String && cause.trim().isNotEmpty) cause.trim(),
           ].join(' - ');
           if (msg.isNotEmpty) {
-            throw Exception('IA indisponível: $msg');
+            throw Exception('A IA está indisponível no momento: $msg');
           }
         }
       } catch (_) {}
-      throw Exception('IA indisponível (HTTP ${res.statusCode}).');
+      throw Exception('A IA está indisponível no momento (HTTP ${res.statusCode}).');
     }
 
     final data = jsonDecode(res.body);
@@ -69,7 +80,7 @@ class AIProxyServiceImpl implements AIService {
       if (text is String && text.trim().isNotEmpty) return text;
       final err = data['error'];
       if (err is String && err.trim().isNotEmpty) {
-        throw Exception(err);
+        throw Exception('A IA retornou um erro: ${err.trim()}');
       }
     }
 

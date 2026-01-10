@@ -51,15 +51,22 @@ class _GoogleDrivePickerScreenState extends State<GoogleDrivePickerScreen> {
   Future<void> _handleSignIn() async {
     setState(() => _isLoading = true);
     try {
-      final user = await _driveService.signIn();
+      final user = await _driveService.signInFresh();
       if (!mounted) return;
 
       if (user != null) {
         setState(() => _user = user);
         await _loadFiles();
       } else {
+        final detail = _driveService.lastAuthError;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login cancelado ou não autorizado.')),
+          SnackBar(
+            content: Text(
+              detail == null || detail.trim().isEmpty
+                  ? 'Login cancelado ou não autorizado. Verifique sua conta Google e tente novamente.'
+                  : 'Falha no login do Google: $detail',
+            ),
+          ),
         );
       }
     } catch (e) {

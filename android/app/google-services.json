@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "218687670610",
+    "project_id": "lumen-reader",
+    "storage_bucket": "lumen-reader.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:218687670610:android:5627a59538cfec0e4fd28b",
+        "android_client_info": {
+          "package_name": "com.lumen.lumen_reader"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "218687670610-i8r2fh3rm6k7j5td1g2t2ipqjl27s1q9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKUqg244qfVitOdtX9MWU2ArkO8r5I-d4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "218687670610-i8r2fh3rm6k7j5td1g2t2ipqjl27s1q9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

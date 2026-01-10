@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:lumen_reader/features/library/presentation/providers/library_providers.dart';
@@ -16,6 +17,8 @@ import 'package:lumen_reader/features/library/presentation/screens/google_drive_
 
 class FilesScreen extends ConsumerWidget {
   const FilesScreen({super.key});
+
+  static const MethodChannel _safChannel = MethodChannel('lumen_reader/saf');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -142,11 +145,57 @@ class FilesScreen extends ConsumerWidget {
   }
 
   Future<void> _scanFolder(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (Platform.isAndroid) {
+      try {
+        final result = await _safChannel.invokeMethod<dynamic>(
+          'pickDirectoryAndListBooks',
+        );
+        if (!context.mounted) return;
+        if (result == null) return;
+
+        if (result is List) {
+          int addedCount = 0;
+          for (final item in result) {
+            if (item is! Map) continue;
+            final path = item['path'];
+            final name = item['name'];
+            if (path is! String || name is! String) continue;
+
+            await _handleImportedFile(
+              path,
+              name,
+              ref,
+              messenger,
+              isBatch: true,
+            );
+            addedCount++;
+          }
+
+          if (!context.mounted) return;
+          messenger.showSnackBar(
+            SnackBar(content: Text('$addedCount livros encontrados.')),
+          );
+          return;
+        }
+
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Não foi possível ler a pasta selecionada.')),
+        );
+        return;
+      } on PlatformException catch (e) {
+        if (!context.mounted) return;
+        messenger.showSnackBar(
+          SnackBar(content: Text('Erro ao acessar pasta: ${e.message ?? e.code}')),
+        );
+        return;
+      }
+    }
+
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
     if (!context.mounted) return;
     if (selectedDirectory == null) return;
-
-    final messenger = ScaffoldMessenger.of(context);
 
     // Permission check usually redundant for getDirectoryPath on some OS but good practice for raw file access
     // On Android 11+ explicit permission might be needed or manage external storage

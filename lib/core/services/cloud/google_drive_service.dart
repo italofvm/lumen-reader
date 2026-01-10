@@ -5,6 +5,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 class GoogleDriveService {
+  static final GoogleDriveService _instance = GoogleDriveService._();
+
+  factory GoogleDriveService() => _instance;
+
+  GoogleDriveService._();
+
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: [
       drive.DriveApi.driveFileScope,
@@ -14,14 +20,18 @@ class GoogleDriveService {
   );
 
   GoogleSignInAccount? _currentUser;
+  String? _lastAuthError;
 
   String? get currentUserEmail => _currentUser?.email;
+  String? get lastAuthError => _lastAuthError;
 
   Future<GoogleSignInAccount?> signInSilently() async {
     try {
+      _lastAuthError = null;
       _currentUser = await _googleSignIn.signInSilently();
       return _currentUser;
     } catch (error) {
+      _lastAuthError = error.toString();
       debugPrint('Silent sign in error: $error');
       return null;
     }
@@ -29,10 +39,25 @@ class GoogleDriveService {
 
   Future<GoogleSignInAccount?> signIn() async {
     try {
+      _lastAuthError = null;
       _currentUser = await _googleSignIn.signIn();
       return _currentUser;
     } catch (error) {
+      _lastAuthError = error.toString();
       debugPrint('Sign in error: $error');
+      return null;
+    }
+  }
+
+  Future<GoogleSignInAccount?> signInFresh() async {
+    try {
+      _lastAuthError = null;
+      await disconnect();
+      _currentUser = await _googleSignIn.signIn();
+      return _currentUser;
+    } catch (error) {
+      _lastAuthError = error.toString();
+      debugPrint('Fresh sign in error: $error');
       return null;
     }
   }
@@ -42,13 +67,28 @@ class GoogleDriveService {
     _currentUser = null;
   }
 
+  Future<void> disconnect() async {
+    try {
+      await _googleSignIn.disconnect();
+    } finally {
+      _currentUser = null;
+    }
+  }
+
   Future<drive.DriveApi?> getDriveApi() async {
     // Ensure we have a user
     final account = _currentUser ?? await _googleSignIn.signInSilently();
     if (account == null) return null;
 
-    final httpClient = await _googleSignIn.authenticatedClient();
-    if (httpClient == null) return null;
+    var httpClient = await _googleSignIn.authenticatedClient();
+    if (httpClient == null) {
+      // Some devices return null when the token is invalid/revoked or scopes changed.
+      // Try forcing an interactive re-auth.
+      final user = await signIn();
+      if (user == null) return null;
+      httpClient = await _googleSignIn.authenticatedClient();
+      if (httpClient == null) return null;
+    }
     return drive.DriveApi(httpClient);
   }
 
@@ -67,6 +107,11 @@ class GoogleDriveService {
       return fileList.files ?? [];
     } catch (e) {
       debugPrint('Error listing files: $e');
+      final msg = e.toString();
+      // If auth was revoked or scopes missing, force disconnect so UI can prompt reconnection.
+      if (msg.contains('401') || msg.contains('403')) {
+        await disconnect();
+      }
       return [];
     }
   }

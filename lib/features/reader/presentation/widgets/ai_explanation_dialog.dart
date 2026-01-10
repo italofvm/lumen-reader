@@ -14,6 +14,17 @@ class AIExplanationDialog extends ConsumerStatefulWidget {
 class _AIExplanationDialogState extends ConsumerState<AIExplanationDialog> {
   Future<String>? _future;
 
+  String _prettyError(Object? e) {
+    var s = (e ?? '').toString().trim();
+    if (s.startsWith('Exception:')) {
+      s = s.substring('Exception:'.length).trim();
+    }
+    if (s.startsWith('Error:')) {
+      s = s.substring('Error:'.length).trim();
+    }
+    return s.isEmpty ? 'Ocorreu um erro inesperado.' : s;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,7 +92,7 @@ class _AIExplanationDialogState extends ConsumerState<AIExplanationDialog> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      snapshot.error.toString(),
+                      _prettyError(snapshot.error),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onErrorContainer,
                       ),

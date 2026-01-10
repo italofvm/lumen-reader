@@ -26,6 +26,17 @@ class _AskBookDialogState extends ConsumerState<AskBookDialog> {
   String? _lastError;
   bool _isLoading = false;
 
+  String _prettyError(Object? e) {
+    var s = (e ?? '').toString().trim();
+    if (s.startsWith('Exception:')) {
+      s = s.substring('Exception:'.length).trim();
+    }
+    if (s.startsWith('Error:')) {
+      s = s.substring('Error:'.length).trim();
+    }
+    return s.isEmpty ? 'Ocorreu um erro inesperado.' : s;
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -56,7 +67,7 @@ class _AskBookDialogState extends ConsumerState<AskBookDialog> {
     }).catchError((e) {
       if (!mounted) return;
       setState(() {
-        _lastError = e.toString();
+        _lastError = _prettyError(e);
         _isLoading = false;
       });
     });

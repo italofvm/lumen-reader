@@ -60,3 +60,14 @@ Configuração:
 - Crash reporting (ex.: Firebase Crashlytics ou Sentry)
 - Logs estruturados (ex.: `logger`) para rastrear falhas de importação/leitura
 
+
+## Build Manual (Log de Execução)
+Data: 2026-01-08
+Versão: 1.2.8+9
+Artefato: `android/app/build/outputs/flutter-apk/app-release.apk`
+Tamanho: 98 MB
+
+**Notas:**
+- Build realizado com sucesso após limpeza completa (`flutter clean`).
+- Ambiente validado com Kotlin 1.9.10 (aviso de deprecation notado).
+- Assinatura de depuração utilizada para validação local.

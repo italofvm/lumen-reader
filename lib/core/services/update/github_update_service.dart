@@ -156,25 +156,37 @@ class GitHubUpdateService {
   }
 
   bool isNewer({required String currentVersion, required String latestTag}) {
-    final cur = _parseVersionParts(currentVersion);
-    final latest = _parseVersionParts(latestTag);
+    final cur = _parseVersion(currentVersion);
+    final latest = _parseVersion(latestTag);
 
     for (var i = 0; i < 3; i++) {
-      final a = cur[i];
-      final b = latest[i];
+      final a = cur.parts[i];
+      final b = latest.parts[i];
       if (b > a) return true;
       if (b < a) return false;
     }
-    return false;
+
+    // Same major/minor/patch; compare build if any side provides it.
+    final curBuild = cur.build ?? 0;
+    final latestBuild = latest.build ?? 0;
+
+    // If neither tag nor current contains build, treat as not newer.
+    if (cur.build == null && latest.build == null) return false;
+
+    return latestBuild > curBuild;
   }
 
-  List<int> _parseVersionParts(String v) {
+  _ParsedVersion _parseVersion(String v) {
     var s = v.trim();
     if (s.startsWith('v') || s.startsWith('V')) {
       s = s.substring(1);
     }
+
+    int? build;
     final plusIdx = s.indexOf('+');
     if (plusIdx >= 0) {
+      final buildPart = s.substring(plusIdx + 1);
+      build = int.tryParse(_digits(buildPart));
       s = s.substring(0, plusIdx);
     }
 
@@ -187,8 +199,15 @@ class GitHubUpdateService {
     if (parts.length > 1) p1 = int.tryParse(_digits(parts[1])) ?? 0;
     if (parts.length > 2) p2 = int.tryParse(_digits(parts[2])) ?? 0;
 
-    return [p0, p1, p2];
+    return _ParsedVersion(parts: [p0, p1, p2], build: build);
   }
 
   String _digits(String s) => s.replaceAll(RegExp(r'[^0-9]'), '');
+}
+
+class _ParsedVersion {
+  final List<int> parts;
+  final int? build;
+
+  const _ParsedVersion({required this.parts, required this.build});
 }

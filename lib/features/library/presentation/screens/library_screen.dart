@@ -1,32 +1,21 @@
-import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:lumen_reader/features/library/presentation/widgets/book_card.dart';
 import 'package:lumen_reader/features/library/presentation/widgets/book_list_tile.dart';
 import 'package:lumen_reader/features/reader/presentation/screens/pdf_reader_screen.dart';
 import 'package:lumen_reader/features/reader/presentation/screens/epub_reader_screen.dart';
 import 'package:lumen_reader/features/reader/presentation/screens/txt_reader_screen.dart';
+import 'package:lumen_reader/features/habits/presentation/screens/habits_screen.dart';
 import 'package:lumen_reader/features/settings/presentation/screens/settings_screen.dart';
 import 'package:lumen_reader/features/settings/domain/providers/settings_providers.dart';
 import 'package:lumen_reader/features/library/presentation/providers/library_providers.dart';
 import 'package:lumen_reader/features/library/presentation/screens/recent_reading_screen.dart';
 import 'package:lumen_reader/features/library/presentation/screens/files_screen.dart';
-import 'package:lumen_reader/features/library/presentation/screens/google_drive_picker_screen.dart';
 import 'package:lumen_reader/features/library/presentation/widgets/book_search_delegate.dart';
-import 'package:lumen_reader/core/utils/book_utils.dart';
 import 'package:lumen_reader/features/library/presentation/widgets/dashboard_widgets.dart';
 import 'package:lumen_reader/features/library/domain/entities/book.dart';
-import 'package:lumen_reader/features/library/domain/entities/pdf_book.dart';
-import 'package:lumen_reader/features/library/domain/entities/epub_book.dart';
-import 'package:lumen_reader/features/library/domain/entities/other_book.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
-import 'package:flutter/foundation.dart'; // Import for kIsWeb
-import 'package:permission_handler/permission_handler.dart';
 
-const List<String> _textExtensions = ['mobi', 'fb2', 'txt', 'azw3'];
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -159,7 +148,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   if (!settings.isWoodShelf && recentBook != null)
                     SliverToBoxAdapter(
                       child: DashboardSection(
-                        title: 'Lista recente',
+                        title: 'Livro Recente',
                         child: Padding(
                           padding: const EdgeInsets.all(24.0),
                           child: Row(
@@ -220,75 +209,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     ),
 
                   const SliverToBoxAdapter(child: SizedBox(height: 32)),
-
-                  // Quick Actions Section (Hide in Wood Shelf mode)
-                  if (!settings.isWoodShelf)
-                    SliverToBoxAdapter(
-                      child: DashboardSection(
-                        title: 'Meus Arquivos',
-                        onSettingsTap:
-                            () {}, // Placeholder for section settings
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 28),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              QuickActionItem(
-                                icon: Icons.file_open,
-                                label: 'Arquivo',
-                                color: const Color(
-                                  0xFF42A5F5,
-                                ), // Blue/Dropbox style
-                                onTap: () => _importBook(context, ref),
-                              ),
-                              QuickActionItem(
-                                icon: Icons.folder,
-                                label: 'Pasta',
-                                color: const Color(
-                                  0xFFFFA726,
-                                ), // Orange/WebDav style
-                                onTap: () => _scanFolder(context, ref),
-                              ),
-                              QuickActionItem(
-                                icon: Icons.cloud,
-                                label: 'Nuvem',
-                                color: const Color(
-                                  0xFF66BB6A,
-                                ), // Green/FTP style
-                                onTap: () async {
-                                  final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const GoogleDrivePickerScreen(),
-                                    ),
-                                  );
-                                  if (!context.mounted) return;
-                                  if (result != null && result is Map<String, String>) {
-                                    await _handleImportedFile(
-                                      result['path']!,
-                                      result['name']!,
-                                      ref,
-                                    );
-                                  }
-                                },
-                              ),
-                              QuickActionItem(
-                                icon: Icons.sd_storage,
-                                label: 'Escanear',
-                                color: const Color(
-                                  0xFFBDBDBD,
-                                ), // Grey/SDCard style
-                                onTap: () => _scanDevice(context, ref),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  if (!settings.isWoodShelf)
-                    const SliverToBoxAdapter(child: SizedBox(height: 40)),
 
                   // View Mode selector removed from here as it's now in the AppBar
                   if (!settings.isWoodShelf)
@@ -536,6 +456,28 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               );
                             },
                           ),
+                          ListTile(
+                            leading: Icon(
+                              Icons.timer,
+                              color: cs.onSurface.withAlpha((0.90 * 255).round()),
+                            ),
+                            title: Text(
+                              'Hábito',
+                              style: TextStyle(
+                                color: cs.onSurface.withAlpha((0.92 * 255).round()),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const HabitsScreen(),
+                                ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -576,302 +518,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _handleImportedFile(
-    String filePath,
-    String fileName,
-    WidgetRef ref,
-  ) async {
-    final books = ref.read(libraryProvider).asData?.value ?? [];
-    if (books.any((b) => b.filePath == filePath)) {
-      // book already in library
-      return;
-    }
-
-    final extension = fileName.split('.').last.toLowerCase();
-    final bookId = DateTime.now().millisecondsSinceEpoch.toString();
-
-    if (extension == 'pdf') {
-      final coverPath = await BookUtils.extractPdfCover(filePath, bookId);
-      final pdfBook = PdfBook(
-        id: bookId,
-        title: fileName,
-        author: 'Desconhecido',
-        filePath: filePath,
-        coverPath: coverPath,
-        lastRead: DateTime.now(),
-      );
-      await ref.read(libraryProvider.notifier).importBook(pdfBook);
-    } else if (extension == 'epub') {
-      final coverPath = await BookUtils.extractEpubCover(filePath, bookId);
-      final epubBook = EpubBook(
-        id: bookId,
-        title: fileName,
-        author: 'Desconhecido',
-        filePath: filePath,
-        coverPath: coverPath,
-        lastRead: DateTime.now(),
-      );
-      await ref.read(libraryProvider.notifier).importBook(epubBook);
-    } else if (_textExtensions.contains(extension)) {
-      final type = BookType.values.firstWhere(
-        (e) => e.name == extension,
-        orElse: () => BookType.mobi,
-      );
-      final book = OtherBook(
-        id: bookId,
-        title: fileName,
-        author: 'Desconhecido',
-        filePath: filePath,
-        type: type,
-        lastRead: DateTime.now(),
-      );
-      await ref.read(libraryProvider.notifier).importBook(book);
-    }
-  }
-
-  Future<void> _scanFolder(BuildContext context, WidgetRef ref) async {
-    if (kIsWeb) return;
-
-    final String? directoryPath = await FilePicker.platform.getDirectoryPath();
-
-    if (directoryPath == null) return;
-
-    final List<String> allowedExtensions = [
-      'pdf',
-      'epub',
-      'mobi',
-      'azw3',
-      'fb2',
-      'txt',
-    ];
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Escaneando: $directoryPath')));
-    }
-
-    int count = 0;
-    try {
-      final dir = Directory(directoryPath);
-      await for (final entity in dir.list(recursive: true, followLinks: false)) {
-        if (entity is! File) continue;
-        final fileName = entity.path.split('/').last;
-        if (!ref.read(readerSettingsProvider).showHiddenFiles &&
-            fileName.startsWith('.')) {
-          continue;
-        }
-
-        final ext = fileName.split('.').last.toLowerCase();
-        if (allowedExtensions.contains(ext)) {
-          await _handleImportedFile(entity.path, fileName, ref);
-          count++;
-        }
-      }
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Escaneamento concluído: $count novos livros encontrados.',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro ao escanear: $e')));
-      }
-    }
-  }
-
-  Future<void> _scanDevice(BuildContext context, WidgetRef ref) async {
-    if (kIsWeb) return;
-
-    if (Platform.isAndroid) {
-      if (!await Permission.manageExternalStorage.request().isGranted) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Acesse Configurações e permita "Acesso a todos os arquivos" para escanear.',
-              ),
-              duration: Duration(seconds: 4),
-            ),
-          );
-        }
-        await openAppSettings();
-        if (!context.mounted) return;
-        return;
-      }
-    }
-
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Escaneando pastas comuns...')),
-    );
-
-    int count = 0;
-    final List<String> pathsToScan = [];
-
-    if (Platform.isAndroid) {
-      pathsToScan.addAll([
-        '/storage/emulated/0/Download',
-        '/storage/emulated/0/Documents',
-        '/storage/emulated/0/Books',
-      ]);
-    } else if (Platform.isIOS || Platform.isMacOS) {
-      final docsDir = await getApplicationDocumentsDirectory();
-      pathsToScan.add(docsDir.path);
-    }
-
-    final List<String> allowedExtensions = [
-      'pdf',
-      'epub',
-      'mobi',
-      'azw3',
-      'fb2',
-      'txt',
-    ];
-
-    try {
-      for (String path in pathsToScan) {
-        final dir = Directory(path);
-        if (await dir.exists()) {
-          await for (final entity in dir.list(
-            recursive: true,
-            followLinks: false,
-          )) {
-            if (entity is! File) continue;
-            final fileName = entity.path.split('/').last;
-            if (!ref.read(readerSettingsProvider).showHiddenFiles &&
-                fileName.startsWith('.')) {
-              continue;
-            }
-
-            final ext = fileName.split('.').last.toLowerCase();
-            if (allowedExtensions.contains(ext)) {
-              await _handleImportedFile(entity.path, fileName, ref);
-              count++;
-            }
-          }
-        }
-      }
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Escaneamento concluído: $count novos livros encontrados.',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro ao escanear: $e')));
-      }
-    }
-  }
-
-  Future<void> _importBook(BuildContext context, WidgetRef ref) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'epub', 'mobi', 'azw3', 'fb2', 'txt'],
-      withData: true,
-    );
-
-    if (result != null) {
-      final PlatformFile file = result.files.single;
-      final fileName = file.name;
-      final extension = fileName.split('.').last.toLowerCase();
-
-      if (kIsWeb) {
-        if (file.bytes == null) return;
-        if (!context.mounted) return;
-
-        if (extension == 'pdf') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PdfReaderScreen(
-                title: fileName,
-                filePath: '',
-                fileBytes: file.bytes,
-              ),
-            ),
-          );
-        } else if (extension == 'epub') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EpubReaderScreen(
-                title: fileName,
-                filePath: '',
-                fileBytes: file.bytes,
-              ),
-            ),
-          );
-        } else if (_textExtensions.contains(extension)) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EpubReaderScreen(
-                // Use Epub reader as placeholder if it handles mobi or just placeholder screen
-                title: fileName,
-                filePath: '',
-                fileBytes: file.bytes,
-              ),
-            ),
-          );
-        }
-
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Modo Web: Livro aberto temporariamente (não salvo).',
-            ),
-            duration: Duration(seconds: 4),
-          ),
-        );
-        return;
-      }
-
-      final bookId = DateTime.now().millisecondsSinceEpoch.toString();
-      final appDir = await getApplicationDocumentsDirectory();
-      final booksDir = Directory(p.join(appDir.path, 'books'));
-      if (!await booksDir.exists()) await booksDir.create(recursive: true);
-      final targetPath = p.join(booksDir.path, '$bookId.$extension');
-
-      if (file.path != null) {
-        final sourcePath = file.path!;
-        await File(sourcePath).copy(targetPath);
-        await _handleImportedFile(targetPath, fileName, ref);
-        return;
-      }
-
-      final bytes = file.bytes;
-      if (bytes == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Não foi possível acessar o arquivo selecionado.'),
-            ),
-          );
-        }
-        return;
-      }
-
-      await File(targetPath).writeAsBytes(bytes, flush: true);
-      await _handleImportedFile(targetPath, fileName, ref);
-    }
   }
 
   @override

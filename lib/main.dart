@@ -8,7 +8,8 @@ import 'package:device_preview/device_preview.dart';
 import 'package:lumen_reader/core/theme/app_theme.dart';
 import 'package:lumen_reader/core/theme/theme_provider.dart';
 import 'package:lumen_reader/core/services/update/app_update_service.dart';
-import 'package:lumen_reader/features/library/presentation/screens/library_screen.dart';
+import 'package:lumen_reader/core/services/import/auto_import_service.dart';
+import 'package:lumen_reader/features/home/presentation/screens/home_shell_screen.dart';
 import 'package:lumen_reader/features/reader/presentation/screens/pdf_reader_screen.dart';
 import 'package:lumen_reader/features/reader/presentation/screens/epub_reader_screen.dart';
 import 'package:lumen_reader/features/onboarding/presentation/screens/onboarding_screen.dart';
@@ -17,8 +18,6 @@ import 'package:path/path.dart' as p;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Hive
   await Hive.initFlutter();
 
   runApp(
@@ -54,7 +53,7 @@ class LumenReaderApp extends ConsumerWidget {
       builder: DevicePreview.appBuilder, // Add builder
       theme: AppTheme.getTheme(themeMode),
       navigatorKey: _OpenFileCoordinator.navigatorKey,
-      home: const _OpenFileCoordinator(child: LibraryScreen()),
+      home: const _OpenFileCoordinator(child: HomeShellScreen()),
       debugShowCheckedModeBanner: false,
     );
   }
@@ -68,12 +67,14 @@ class _OpenFileCoordinator extends ConsumerStatefulWidget {
   static const _channel = MethodChannel('lumen_reader/open_file');
 
   @override
-  ConsumerState<_OpenFileCoordinator> createState() => _OpenFileCoordinatorState();
+  ConsumerState<_OpenFileCoordinator> createState() =>
+      _OpenFileCoordinatorState();
 }
 
 class _OpenFileCoordinatorState extends ConsumerState<_OpenFileCoordinator> {
   bool _initialized = false;
   bool _didCheckUpdates = false;
+  bool _didAutoImport = false;
   bool _didShowOnboarding = false;
   ProviderSubscription<bool>? _onboardingSub;
 
@@ -82,6 +83,7 @@ class _OpenFileCoordinatorState extends ConsumerState<_OpenFileCoordinator> {
     super.initState();
     _initOpenFileHandling();
     _initUpdateCheck();
+    _initAutoImport();
     _initOnboardingCheck();
   }
 
@@ -103,7 +105,9 @@ class _OpenFileCoordinatorState extends ConsumerState<_OpenFileCoordinator> {
               fullscreenDialog: true,
               builder: (_) => OnboardingScreen(
                 onFinish: () {
-                  ref.read(readerSettingsProvider.notifier).setOnboardingSeen(true);
+                  ref
+                      .read(readerSettingsProvider.notifier)
+                      .setOnboardingSeen(true);
                   final n = _OpenFileCoordinator.navigatorKey.currentState;
                   if (n == null) return;
                   if (n.canPop()) n.pop();
@@ -127,6 +131,15 @@ class _OpenFileCoordinatorState extends ConsumerState<_OpenFileCoordinator> {
     });
   }
 
+  void _initAutoImport() {
+    if (_didAutoImport) return;
+    _didAutoImport = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AutoImportService(ref).runIfEnabled();
+    });
+  }
+
   Future<void> _initOpenFileHandling() async {
     if (_initialized) return;
     _initialized = true;
@@ -141,7 +154,9 @@ class _OpenFileCoordinatorState extends ConsumerState<_OpenFileCoordinator> {
     });
 
     try {
-      final initial = await _OpenFileCoordinator._channel.invokeMethod<String>('getInitialFile');
+      final initial = await _OpenFileCoordinator._channel.invokeMethod<String>(
+        'getInitialFile',
+      );
       if (initial != null && initial.trim().isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _openFile(initial);

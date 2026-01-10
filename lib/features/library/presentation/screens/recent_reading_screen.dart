@@ -15,7 +15,7 @@ class RecentReadingScreen extends ConsumerWidget {
     final libraryState = ref.watch(libraryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Lista Recente')),
+      appBar: AppBar(title: const Text('Livro Recente')),
       body: libraryState.when(
         data: (books) {
           final sortedBooks = List<Book>.from(books)

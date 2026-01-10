@@ -1,0 +1,9 @@
+Running Gradle task 'assembleRelease'...                        
+Warning: Flutter support for your project's Kotlin version (1.9.10) will soon be dropped. Please upgrade your Kotlin version to a version of at least 2.1.0 soon.
+Alternatively, use the flag "--android-skip-build-dependency-validation" to bypass this check.
+
+Potential fix: Your project's KGP version is typically defined in the plugins block of the `settings.gradle` file (/Users/italo/Documents/Projetos/reader/android/settings.gradle), by a plugin with the id of org.jetbrains.kotlin.android. 
+If you don't see a plugins block, your project was likely created with an older template version, in which case it is most likely defined in the top-level build.gradle file (/Users/italo/Documents/Projetos/reader/android/build.gradle) by the ext.kotlin_version property.
+
+Running Gradle task 'assembleRelease'...                          227,4s
+Gradle build failed to produce an .apk file. It's likely that this file was generated under /Users/italo/Documents/Projetos/reader/build, but the tool couldn't find it.

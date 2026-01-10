@@ -1,7 +1,7 @@
 name: lumen_reader
 description: "Aplicativo de leitura de ebooks com IA Gemini integrada."
 publish_to: 'none'
-version: 1.2.8+9
+version: 1.2.8+10
 
 environment:
   sdk: ^3.10.4
@@ -34,6 +34,11 @@ dependencies:
   screen_brightness: ^2.1.7
   device_preview: ^1.2.0
   package_info_plus: ^8.0.2
+  flutter_local_notifications: ^17.2.3
+  firebase_core: ^3.10.0
+  firebase_auth: ^5.2.0
+  timezone: ^0.9.3
+  flutter_timezone: ^3.0.0
 
 dev_dependencies:
   flutter_test:

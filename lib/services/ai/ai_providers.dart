@@ -1,20 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lumen_reader/core/config/app_config.dart';
 import 'ai_service.dart';
 import 'ai_proxy_service_impl.dart';
 import 'gemini_service_impl.dart';
 
 const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
-const String _proxyUrl = String.fromEnvironment('AI_PROXY_URL');
 
 class _MissingKeyAIService implements AIService {
+  String _msg() {
+    return 'A IA ainda não está disponível neste app.\n\n'
+        'Atualize o aplicativo ou tente novamente mais tarde.';
+  }
+
   @override
   Future<String> explainText(String text) async {
-    return 'IA não configurada. Em produção use --dart-define=AI_PROXY_URL=https://... (Render). Em dev use --dart-define=GEMINI_API_KEY=...';
+    return _msg();
   }
 
   @override
   Future<String> summarizeContent(String content) async {
-    return 'IA não configurada. Em produção use --dart-define=AI_PROXY_URL=https://... (Render). Em dev use --dart-define=GEMINI_API_KEY=...';
+    return _msg();
   }
 
   @override
@@ -23,13 +28,14 @@ class _MissingKeyAIService implements AIService {
     required String contextText,
     required String sourceLabel,
   }) async {
-    return 'IA não configurada. Em produção use --dart-define=AI_PROXY_URL=https://... (Render). Em dev use --dart-define=GEMINI_API_KEY=...';
+    return _msg();
   }
 }
 
 final aiServiceProvider = Provider<AIService>((ref) {
-  if (_proxyUrl.trim().isNotEmpty) {
-    return AIProxyServiceImpl(baseUrl: _proxyUrl);
+  final proxyUrl = AppConfig.aiProxyUrl.trim();
+  if (proxyUrl.isNotEmpty && !proxyUrl.contains('SEU-AI-PROXY')) {
+    return AIProxyServiceImpl(baseUrl: proxyUrl);
   }
   if (_apiKey.trim().isEmpty) {
     return _MissingKeyAIService();
